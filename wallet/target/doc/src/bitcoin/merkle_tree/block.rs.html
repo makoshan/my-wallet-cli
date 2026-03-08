@@ -1,0 +1,760 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `/home/ubuntu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitcoin-0.30.2/src/merkle_tree/block.rs`."><title>block.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="bitcoin" data-themes="" data-resource-suffix="" data-rustdoc-version="1.96.0-nightly (e370b60cf 2026-03-07)" data-channel="nightly" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../../../static.files/storage-41dd4d93.js"></script><script defer src="../../../static.files/src-script-813739b1.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1><div class="sub-heading">bitcoin/merkle_tree/</div>block.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Written by John L. Jegutanis
+<a href=#2 id=2 data-nosnippet>2</a>// SPDX-License-Identifier: CC0-1.0
+<a href=#3 id=3 data-nosnippet>3</a>//
+<a href=#4 id=4 data-nosnippet>4</a>// This code was translated from merkleblock.h, merkleblock.cpp and pmt_tests.cpp
+<a href=#5 id=5 data-nosnippet>5</a>// Copyright (c) 2009-2010 Satoshi Nakamoto
+<a href=#6 id=6 data-nosnippet>6</a>// Copyright (c) 2009-2018 The Bitcoin Core developers
+<a href=#7 id=7 data-nosnippet>7</a>// SPDX-License-Identifier: MIT
+<a href=#8 id=8 data-nosnippet>8</a>
+<a href=#9 id=9 data-nosnippet>9</a></span><span class="doccomment">//! Merkle Block and Partial Merkle Tree.
+<a href=#10 id=10 data-nosnippet>10</a>//!
+<a href=#11 id=11 data-nosnippet>11</a>//! Support proofs that transaction(s) belong to a block.
+<a href=#12 id=12 data-nosnippet>12</a>//!
+<a href=#13 id=13 data-nosnippet>13</a>//! # Examples
+<a href=#14 id=14 data-nosnippet>14</a>//!
+<a href=#15 id=15 data-nosnippet>15</a>//! ```rust
+<a href=#16 id=16 data-nosnippet>16</a>//! use bitcoin::hash_types::Txid;
+<a href=#17 id=17 data-nosnippet>17</a>//! use bitcoin::hashes::hex::FromHex;
+<a href=#18 id=18 data-nosnippet>18</a>//! use bitcoin::{Block, MerkleBlock};
+<a href=#19 id=19 data-nosnippet>19</a>//!
+<a href=#20 id=20 data-nosnippet>20</a>//! // Get the proof from a bitcoind by running in the terminal:
+<a href=#21 id=21 data-nosnippet>21</a>//! // $ TXID="5a4ebf66822b0b2d56bd9dc64ece0bc38ee7844a23ff1d7320a88c5fdb2ad3e2"
+<a href=#22 id=22 data-nosnippet>22</a>//! // $ bitcoin-cli gettxoutproof [\"$TXID\"]
+<a href=#23 id=23 data-nosnippet>23</a>//! let mb_bytes = Vec::from_hex("01000000ba8b9cda965dd8e536670f9ddec10e53aab14b20bacad27b913719\
+<a href=#24 id=24 data-nosnippet>24</a>//!     0000000000190760b278fe7b8565fda3b968b918d5fd997f993b23674c0af3b6fde300b38f33a5914ce6ed5b\
+<a href=#25 id=25 data-nosnippet>25</a>//!     1b01e32f570200000002252bf9d75c4f481ebb6278d708257d1f12beb6dd30301d26c623f789b2ba6fc0e2d3\
+<a href=#26 id=26 data-nosnippet>26</a>//!     2adb5f8ca820731dff234a84e78ec30bce4ec69dbd562d0b2b8266bf4e5a0105").unwrap();
+<a href=#27 id=27 data-nosnippet>27</a>//! let mb: MerkleBlock = bitcoin::consensus::deserialize(&amp;mb_bytes).unwrap();
+<a href=#28 id=28 data-nosnippet>28</a>//!
+<a href=#29 id=29 data-nosnippet>29</a>//! // Authenticate and extract matched transaction ids
+<a href=#30 id=30 data-nosnippet>30</a>//! let mut matches: Vec&lt;Txid&gt; = vec![];
+<a href=#31 id=31 data-nosnippet>31</a>//! let mut index: Vec&lt;u32&gt; = vec![];
+<a href=#32 id=32 data-nosnippet>32</a>//! assert!(mb.extract_matches(&amp;mut matches, &amp;mut index).is_ok());
+<a href=#33 id=33 data-nosnippet>33</a>//! assert_eq!(1, matches.len());
+<a href=#34 id=34 data-nosnippet>34</a>//! assert_eq!(
+<a href=#35 id=35 data-nosnippet>35</a>//!     "5a4ebf66822b0b2d56bd9dc64ece0bc38ee7844a23ff1d7320a88c5fdb2ad3e2".parse::&lt;Txid&gt;().unwrap(),
+<a href=#36 id=36 data-nosnippet>36</a>//!     matches[0]
+<a href=#37 id=37 data-nosnippet>37</a>//! );
+<a href=#38 id=38 data-nosnippet>38</a>//! assert_eq!(1, index.len());
+<a href=#39 id=39 data-nosnippet>39</a>//! assert_eq!(1, index[0]);
+<a href=#40 id=40 data-nosnippet>40</a>//! ```
+<a href=#41 id=41 data-nosnippet>41</a>
+<a href=#42 id=42 data-nosnippet>42</a></span><span class="kw">use </span>core::fmt;
+<a href=#43 id=43 data-nosnippet>43</a>
+<a href=#44 id=44 data-nosnippet>44</a><span class="kw">use </span><span class="self">self</span>::MerkleBlockError::<span class="kw-2">*</span>;
+<a href=#45 id=45 data-nosnippet>45</a><span class="kw">use </span><span class="kw">crate</span>::blockdata::block::{<span class="self">self</span>, Block};
+<a href=#46 id=46 data-nosnippet>46</a><span class="kw">use </span><span class="kw">crate</span>::blockdata::constants::{MAX_BLOCK_WEIGHT, MIN_TRANSACTION_WEIGHT};
+<a href=#47 id=47 data-nosnippet>47</a><span class="kw">use </span><span class="kw">crate</span>::blockdata::transaction::Transaction;
+<a href=#48 id=48 data-nosnippet>48</a><span class="kw">use </span><span class="kw">crate</span>::consensus::encode::{<span class="self">self</span>, Decodable, Encodable};
+<a href=#49 id=49 data-nosnippet>49</a><span class="kw">use </span><span class="kw">crate</span>::hash_types::{TxMerkleNode, Txid};
+<a href=#50 id=50 data-nosnippet>50</a><span class="kw">use </span><span class="kw">crate</span>::hashes::Hash;
+<a href=#51 id=51 data-nosnippet>51</a><span class="kw">use </span><span class="kw">crate</span>::io;
+<a href=#52 id=52 data-nosnippet>52</a><span class="kw">use </span><span class="kw">crate</span>::prelude::<span class="kw-2">*</span>;
+<a href=#53 id=53 data-nosnippet>53</a>
+<a href=#54 id=54 data-nosnippet>54</a><span class="doccomment">/// Data structure that represents a block header paired to a partial merkle tree.
+<a href=#55 id=55 data-nosnippet>55</a>///
+<a href=#56 id=56 data-nosnippet>56</a>/// NOTE: This assumes that the given Block has *at least* 1 transaction. If the Block has 0 txs,
+<a href=#57 id=57 data-nosnippet>57</a>/// it will hit an assertion.
+<a href=#58 id=58 data-nosnippet>58</a></span><span class="attr">#[derive(PartialEq, Eq, Clone, Debug)]
+<a href=#59 id=59 data-nosnippet>59</a></span><span class="kw">pub struct </span>MerkleBlock {
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="doccomment">/// The block header
+<a href=#61 id=61 data-nosnippet>61</a>    </span><span class="kw">pub </span>header: block::Header,
+<a href=#62 id=62 data-nosnippet>62</a>    <span class="doccomment">/// Transactions making up a partial merkle tree
+<a href=#63 id=63 data-nosnippet>63</a>    </span><span class="kw">pub </span>txn: PartialMerkleTree,
+<a href=#64 id=64 data-nosnippet>64</a>}
+<a href=#65 id=65 data-nosnippet>65</a>
+<a href=#66 id=66 data-nosnippet>66</a><span class="kw">impl </span>MerkleBlock {
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="doccomment">/// Create a MerkleBlock from a block, that contains proofs for specific txids.
+<a href=#68 id=68 data-nosnippet>68</a>    ///
+<a href=#69 id=69 data-nosnippet>69</a>    /// The `block` is a full block containing the header and transactions and `match_txids` is a
+<a href=#70 id=70 data-nosnippet>70</a>    /// function that returns true for the ids that should be included in the partial merkle tree.
+<a href=#71 id=71 data-nosnippet>71</a>    ///
+<a href=#72 id=72 data-nosnippet>72</a>    /// # Examples
+<a href=#73 id=73 data-nosnippet>73</a>    ///
+<a href=#74 id=74 data-nosnippet>74</a>    /// ```rust
+<a href=#75 id=75 data-nosnippet>75</a>    /// use bitcoin::hash_types::Txid;
+<a href=#76 id=76 data-nosnippet>76</a>    /// use bitcoin::hashes::hex::FromHex;
+<a href=#77 id=77 data-nosnippet>77</a>    /// use bitcoin::{Block, MerkleBlock};
+<a href=#78 id=78 data-nosnippet>78</a>    ///
+<a href=#79 id=79 data-nosnippet>79</a>    /// // Block 80000
+<a href=#80 id=80 data-nosnippet>80</a>    /// let block_bytes = Vec::from_hex("01000000ba8b9cda965dd8e536670f9ddec10e53aab14b20bacad2\
+<a href=#81 id=81 data-nosnippet>81</a>    ///     7b9137190000000000190760b278fe7b8565fda3b968b918d5fd997f993b23674c0af3b6fde300b38f33\
+<a href=#82 id=82 data-nosnippet>82</a>    ///     a5914ce6ed5b1b01e32f5702010000000100000000000000000000000000000000000000000000000000\
+<a href=#83 id=83 data-nosnippet>83</a>    ///     00000000000000ffffffff0704e6ed5b1b014effffffff0100f2052a01000000434104b68a50eaa0287e\
+<a href=#84 id=84 data-nosnippet>84</a>    ///     ff855189f949c1c6e5f58b37c88231373d8a59809cbae83059cc6469d65c665ccfd1cfeb75c6e8e19413\
+<a href=#85 id=85 data-nosnippet>85</a>    ///     bba7fbff9bc762419a76d87b16086eac000000000100000001a6b97044d03da79c005b20ea9c0e1a6d9d\
+<a href=#86 id=86 data-nosnippet>86</a>    ///     c12d9f7b91a5911c9030a439eed8f5000000004948304502206e21798a42fae0e854281abd38bacd1aee\
+<a href=#87 id=87 data-nosnippet>87</a>    ///     d3ee3738d9e1446618c4571d1090db022100e2ac980643b0b82c0e88ffdfec6b64e3e6ba35e7ba5fdd7d\
+<a href=#88 id=88 data-nosnippet>88</a>    ///     5d6cc8d25c6b241501ffffffff0100f2052a010000001976a914404371705fa9bd789a2fcd52d2c580b6\
+<a href=#89 id=89 data-nosnippet>89</a>    ///     5d35549d88ac00000000").unwrap();
+<a href=#90 id=90 data-nosnippet>90</a>    /// let block: Block = bitcoin::consensus::deserialize(&amp;block_bytes).unwrap();
+<a href=#91 id=91 data-nosnippet>91</a>    ///
+<a href=#92 id=92 data-nosnippet>92</a>    /// // Create a merkle block containing a single transaction
+<a href=#93 id=93 data-nosnippet>93</a>    /// let txid = "5a4ebf66822b0b2d56bd9dc64ece0bc38ee7844a23ff1d7320a88c5fdb2ad3e2".parse::&lt;Txid&gt;().unwrap();
+<a href=#94 id=94 data-nosnippet>94</a>    /// let match_txids: Vec&lt;Txid&gt; = vec![txid].into_iter().collect();
+<a href=#95 id=95 data-nosnippet>95</a>    /// let mb = MerkleBlock::from_block_with_predicate(&amp;block, |t| match_txids.contains(t));
+<a href=#96 id=96 data-nosnippet>96</a>    ///
+<a href=#97 id=97 data-nosnippet>97</a>    /// // Authenticate and extract matched transaction ids
+<a href=#98 id=98 data-nosnippet>98</a>    /// let mut matches: Vec&lt;Txid&gt; = vec![];
+<a href=#99 id=99 data-nosnippet>99</a>    /// let mut index: Vec&lt;u32&gt; = vec![];
+<a href=#100 id=100 data-nosnippet>100</a>    /// assert!(mb.extract_matches(&amp;mut matches, &amp;mut index).is_ok());
+<a href=#101 id=101 data-nosnippet>101</a>    /// assert_eq!(txid, matches[0]);
+<a href=#102 id=102 data-nosnippet>102</a>    /// ```
+<a href=#103 id=103 data-nosnippet>103</a>    </span><span class="kw">pub fn </span>from_block_with_predicate&lt;F&gt;(block: <span class="kw-2">&amp;</span>Block, match_txids: F) -&gt; <span class="self">Self
+<a href=#104 id=104 data-nosnippet>104</a>    </span><span class="kw">where
+<a href=#105 id=105 data-nosnippet>105</a>        </span>F: Fn(<span class="kw-2">&amp;</span>Txid) -&gt; bool,
+<a href=#106 id=106 data-nosnippet>106</a>    {
+<a href=#107 id=107 data-nosnippet>107</a>        <span class="kw">let </span>block_txids: Vec&lt;<span class="kw">_</span>&gt; = block.txdata.iter().map(Transaction::txid).collect();
+<a href=#108 id=108 data-nosnippet>108</a>        <span class="self">Self</span>::from_header_txids_with_predicate(<span class="kw-2">&amp;</span>block.header, <span class="kw-2">&amp;</span>block_txids, match_txids)
+<a href=#109 id=109 data-nosnippet>109</a>    }
+<a href=#110 id=110 data-nosnippet>110</a>
+<a href=#111 id=111 data-nosnippet>111</a>    <span class="doccomment">/// Create a MerkleBlock from the block's header and txids, that contain proofs for specific txids.
+<a href=#112 id=112 data-nosnippet>112</a>    ///
+<a href=#113 id=113 data-nosnippet>113</a>    /// The `header` is the block header, `block_txids` is the full list of txids included in the block and
+<a href=#114 id=114 data-nosnippet>114</a>    /// `match_txids` is a function that returns true for the ids that should be included in the partial merkle tree.
+<a href=#115 id=115 data-nosnippet>115</a>    </span><span class="kw">pub fn </span>from_header_txids_with_predicate&lt;F&gt;(
+<a href=#116 id=116 data-nosnippet>116</a>        header: <span class="kw-2">&amp;</span>block::Header,
+<a href=#117 id=117 data-nosnippet>117</a>        block_txids: <span class="kw-2">&amp;</span>[Txid],
+<a href=#118 id=118 data-nosnippet>118</a>        match_txids: F,
+<a href=#119 id=119 data-nosnippet>119</a>    ) -&gt; <span class="self">Self
+<a href=#120 id=120 data-nosnippet>120</a>    </span><span class="kw">where
+<a href=#121 id=121 data-nosnippet>121</a>        </span>F: Fn(<span class="kw-2">&amp;</span>Txid) -&gt; bool,
+<a href=#122 id=122 data-nosnippet>122</a>    {
+<a href=#123 id=123 data-nosnippet>123</a>        <span class="kw">let </span>matches: Vec&lt;bool&gt; = block_txids.iter().map(match_txids).collect();
+<a href=#124 id=124 data-nosnippet>124</a>
+<a href=#125 id=125 data-nosnippet>125</a>        <span class="kw">let </span>pmt = PartialMerkleTree::from_txids(block_txids, <span class="kw-2">&amp;</span>matches);
+<a href=#126 id=126 data-nosnippet>126</a>        MerkleBlock { header: <span class="kw-2">*</span>header, txn: pmt }
+<a href=#127 id=127 data-nosnippet>127</a>    }
+<a href=#128 id=128 data-nosnippet>128</a>
+<a href=#129 id=129 data-nosnippet>129</a>    <span class="doccomment">/// Extract the matching txid's represented by this partial merkle tree
+<a href=#130 id=130 data-nosnippet>130</a>    /// and their respective indices within the partial tree.
+<a href=#131 id=131 data-nosnippet>131</a>    /// returns Ok(()) on success, or error in case of failure
+<a href=#132 id=132 data-nosnippet>132</a>    </span><span class="kw">pub fn </span>extract_matches(
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#134 id=134 data-nosnippet>134</a>        matches: <span class="kw-2">&amp;mut </span>Vec&lt;Txid&gt;,
+<a href=#135 id=135 data-nosnippet>135</a>        indexes: <span class="kw-2">&amp;mut </span>Vec&lt;u32&gt;,
+<a href=#136 id=136 data-nosnippet>136</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), MerkleBlockError&gt; {
+<a href=#137 id=137 data-nosnippet>137</a>        <span class="kw">let </span>merkle_root = <span class="self">self</span>.txn.extract_matches(matches, indexes)<span class="question-mark">?</span>;
+<a href=#138 id=138 data-nosnippet>138</a>
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">if </span>merkle_root.eq(<span class="kw-2">&amp;</span><span class="self">self</span>.header.merkle_root) {
+<a href=#140 id=140 data-nosnippet>140</a>            <span class="prelude-val">Ok</span>(())
+<a href=#141 id=141 data-nosnippet>141</a>        } <span class="kw">else </span>{
+<a href=#142 id=142 data-nosnippet>142</a>            <span class="prelude-val">Err</span>(MerkleRootMismatch)
+<a href=#143 id=143 data-nosnippet>143</a>        }
+<a href=#144 id=144 data-nosnippet>144</a>    }
+<a href=#145 id=145 data-nosnippet>145</a>}
+<a href=#146 id=146 data-nosnippet>146</a>
+<a href=#147 id=147 data-nosnippet>147</a><span class="kw">impl </span>Encodable <span class="kw">for </span>MerkleBlock {
+<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">fn </span>consensus_encode&lt;W: io::Write + <span class="question-mark">?</span>Sized&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, w: <span class="kw-2">&amp;mut </span>W) -&gt; <span class="prelude-ty">Result</span>&lt;usize, io::Error&gt; {
+<a href=#149 id=149 data-nosnippet>149</a>        <span class="kw">let </span>len = <span class="self">self</span>.header.consensus_encode(w)<span class="question-mark">? </span>+ <span class="self">self</span>.txn.consensus_encode(w)<span class="question-mark">?</span>;
+<a href=#150 id=150 data-nosnippet>150</a>        <span class="prelude-val">Ok</span>(len)
+<a href=#151 id=151 data-nosnippet>151</a>    }
+<a href=#152 id=152 data-nosnippet>152</a>}
+<a href=#153 id=153 data-nosnippet>153</a>
+<a href=#154 id=154 data-nosnippet>154</a><span class="kw">impl </span>Decodable <span class="kw">for </span>MerkleBlock {
+<a href=#155 id=155 data-nosnippet>155</a>    <span class="kw">fn </span>consensus_decode&lt;R: io::Read + <span class="question-mark">?</span>Sized&gt;(r: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, encode::Error&gt; {
+<a href=#156 id=156 data-nosnippet>156</a>        <span class="prelude-val">Ok</span>(MerkleBlock {
+<a href=#157 id=157 data-nosnippet>157</a>            header: Decodable::consensus_decode(r)<span class="question-mark">?</span>,
+<a href=#158 id=158 data-nosnippet>158</a>            txn: Decodable::consensus_decode(r)<span class="question-mark">?</span>,
+<a href=#159 id=159 data-nosnippet>159</a>        })
+<a href=#160 id=160 data-nosnippet>160</a>    }
+<a href=#161 id=161 data-nosnippet>161</a>}
+<a href=#162 id=162 data-nosnippet>162</a>
+<a href=#163 id=163 data-nosnippet>163</a><span class="doccomment">/// Data structure that represents a partial merkle tree.
+<a href=#164 id=164 data-nosnippet>164</a>///
+<a href=#165 id=165 data-nosnippet>165</a>/// It represents a subset of the txid's of a known block, in a way that
+<a href=#166 id=166 data-nosnippet>166</a>/// allows recovery of the list of txid's and the merkle root, in an
+<a href=#167 id=167 data-nosnippet>167</a>/// authenticated way.
+<a href=#168 id=168 data-nosnippet>168</a>///
+<a href=#169 id=169 data-nosnippet>169</a>/// The encoding works as follows: we traverse the tree in depth-first order,
+<a href=#170 id=170 data-nosnippet>170</a>/// storing a bit for each traversed node, signifying whether the node is the
+<a href=#171 id=171 data-nosnippet>171</a>/// parent of at least one matched leaf txid (or a matched txid itself). In
+<a href=#172 id=172 data-nosnippet>172</a>/// case we are at the leaf level, or this bit is 0, its merkle node hash is
+<a href=#173 id=173 data-nosnippet>173</a>/// stored, and its children are not explored further. Otherwise, no hash is
+<a href=#174 id=174 data-nosnippet>174</a>/// stored, but we recurse into both (or the only) child branch. During
+<a href=#175 id=175 data-nosnippet>175</a>/// decoding, the same depth-first traversal is performed, consuming bits and
+<a href=#176 id=176 data-nosnippet>176</a>/// hashes as they written during encoding.
+<a href=#177 id=177 data-nosnippet>177</a>///
+<a href=#178 id=178 data-nosnippet>178</a>/// The serialization is fixed and provides a hard guarantee about the
+<a href=#179 id=179 data-nosnippet>179</a>/// encoded size:
+<a href=#180 id=180 data-nosnippet>180</a>///
+<a href=#181 id=181 data-nosnippet>181</a>///   SIZE &lt;= 10 + ceil(32.25*N)
+<a href=#182 id=182 data-nosnippet>182</a>///
+<a href=#183 id=183 data-nosnippet>183</a>/// Where N represents the number of leaf nodes of the partial tree. N itself
+<a href=#184 id=184 data-nosnippet>184</a>/// is bounded by:
+<a href=#185 id=185 data-nosnippet>185</a>///
+<a href=#186 id=186 data-nosnippet>186</a>///   N &lt;= total_transactions
+<a href=#187 id=187 data-nosnippet>187</a>///   N &lt;= 1 + matched_transactions*tree_height
+<a href=#188 id=188 data-nosnippet>188</a>///
+<a href=#189 id=189 data-nosnippet>189</a>/// The serialization format:
+<a href=#190 id=190 data-nosnippet>190</a>///  - uint32     total_transactions (4 bytes)
+<a href=#191 id=191 data-nosnippet>191</a>///  - varint     number of hashes   (1-3 bytes)
+<a href=#192 id=192 data-nosnippet>192</a>///  - uint256[]  hashes in depth-first order (&lt;= 32*N bytes)
+<a href=#193 id=193 data-nosnippet>193</a>///  - varint     number of bytes of flag bits (1-3 bytes)
+<a href=#194 id=194 data-nosnippet>194</a>///  - byte[]     flag bits, packed per 8 in a byte, least significant bit first (&lt;= 2*N-1 bits)
+<a href=#195 id=195 data-nosnippet>195</a>/// The size constraints follow from this.
+<a href=#196 id=196 data-nosnippet>196</a></span><span class="attr">#[derive(PartialEq, Eq, Clone, Debug)]
+<a href=#197 id=197 data-nosnippet>197</a></span><span class="kw">pub struct </span>PartialMerkleTree {
+<a href=#198 id=198 data-nosnippet>198</a>    <span class="doccomment">/// The total number of transactions in the block
+<a href=#199 id=199 data-nosnippet>199</a>    </span>num_transactions: u32,
+<a href=#200 id=200 data-nosnippet>200</a>    <span class="doccomment">/// node-is-parent-of-matched-txid bits
+<a href=#201 id=201 data-nosnippet>201</a>    </span>bits: Vec&lt;bool&gt;,
+<a href=#202 id=202 data-nosnippet>202</a>    <span class="doccomment">/// Transaction ids and internal hashes
+<a href=#203 id=203 data-nosnippet>203</a>    </span>hashes: Vec&lt;TxMerkleNode&gt;,
+<a href=#204 id=204 data-nosnippet>204</a>}
+<a href=#205 id=205 data-nosnippet>205</a>
+<a href=#206 id=206 data-nosnippet>206</a><span class="kw">impl </span>PartialMerkleTree {
+<a href=#207 id=207 data-nosnippet>207</a>    <span class="doccomment">/// Returns the total number of transactions in the block.
+<a href=#208 id=208 data-nosnippet>208</a>    </span><span class="kw">pub fn </span>num_transactions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 { <span class="self">self</span>.num_transactions }
+<a href=#209 id=209 data-nosnippet>209</a>
+<a href=#210 id=210 data-nosnippet>210</a>    <span class="doccomment">/// Returns the node-is-parent-of-matched-txid bits of the partial merkle tree.
+<a href=#211 id=211 data-nosnippet>211</a>    </span><span class="kw">pub fn </span>bits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;bool&gt; { <span class="kw-2">&amp;</span><span class="self">self</span>.bits }
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>    <span class="doccomment">/// Returns the transaction ids and internal hashes of the partial merkle tree.
+<a href=#214 id=214 data-nosnippet>214</a>    </span><span class="kw">pub fn </span>hashes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Vec&lt;TxMerkleNode&gt; { <span class="kw-2">&amp;</span><span class="self">self</span>.hashes }
+<a href=#215 id=215 data-nosnippet>215</a>
+<a href=#216 id=216 data-nosnippet>216</a>    <span class="doccomment">/// Construct a partial merkle tree
+<a href=#217 id=217 data-nosnippet>217</a>    /// The `txids` are the transaction hashes of the block and the `matches` is the contains flags
+<a href=#218 id=218 data-nosnippet>218</a>    /// wherever a tx hash should be included in the proof.
+<a href=#219 id=219 data-nosnippet>219</a>    ///
+<a href=#220 id=220 data-nosnippet>220</a>    /// Panics when `txids` is empty or when `matches` has a different length
+<a href=#221 id=221 data-nosnippet>221</a>    ///
+<a href=#222 id=222 data-nosnippet>222</a>    /// # Examples
+<a href=#223 id=223 data-nosnippet>223</a>    ///
+<a href=#224 id=224 data-nosnippet>224</a>    /// ```rust
+<a href=#225 id=225 data-nosnippet>225</a>    /// use bitcoin::hash_types::Txid;
+<a href=#226 id=226 data-nosnippet>226</a>    /// use bitcoin::hashes::hex::FromHex;
+<a href=#227 id=227 data-nosnippet>227</a>    /// use bitcoin::merkle_tree::{MerkleBlock, PartialMerkleTree};
+<a href=#228 id=228 data-nosnippet>228</a>    ///
+<a href=#229 id=229 data-nosnippet>229</a>    /// // Block 80000
+<a href=#230 id=230 data-nosnippet>230</a>    /// let txids: Vec&lt;Txid&gt; = [
+<a href=#231 id=231 data-nosnippet>231</a>    ///     "c06fbab289f723c6261d3030ddb6be121f7d2508d77862bb1e484f5cd7f92b25",
+<a href=#232 id=232 data-nosnippet>232</a>    ///     "5a4ebf66822b0b2d56bd9dc64ece0bc38ee7844a23ff1d7320a88c5fdb2ad3e2",
+<a href=#233 id=233 data-nosnippet>233</a>    /// ]
+<a href=#234 id=234 data-nosnippet>234</a>    /// .iter()
+<a href=#235 id=235 data-nosnippet>235</a>    /// .map(|hex| hex.parse::&lt;Txid&gt;().unwrap())
+<a href=#236 id=236 data-nosnippet>236</a>    /// .collect();
+<a href=#237 id=237 data-nosnippet>237</a>    ///
+<a href=#238 id=238 data-nosnippet>238</a>    /// // Select the second transaction
+<a href=#239 id=239 data-nosnippet>239</a>    /// let matches = vec![false, true];
+<a href=#240 id=240 data-nosnippet>240</a>    /// let tree = PartialMerkleTree::from_txids(&amp;txids, &amp;matches);
+<a href=#241 id=241 data-nosnippet>241</a>    /// assert!(tree.extract_matches(&amp;mut vec![], &amp;mut vec![]).is_ok());
+<a href=#242 id=242 data-nosnippet>242</a>    /// ```
+<a href=#243 id=243 data-nosnippet>243</a>    </span><span class="kw">pub fn </span>from_txids(txids: <span class="kw-2">&amp;</span>[Txid], matches: <span class="kw-2">&amp;</span>[bool]) -&gt; <span class="self">Self </span>{
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="comment">// We can never have zero txs in a merkle block, we always need the coinbase tx
+<a href=#245 id=245 data-nosnippet>245</a>        </span><span class="macro">assert_ne!</span>(txids.len(), <span class="number">0</span>);
+<a href=#246 id=246 data-nosnippet>246</a>        <span class="macro">assert_eq!</span>(txids.len(), matches.len());
+<a href=#247 id=247 data-nosnippet>247</a>
+<a href=#248 id=248 data-nosnippet>248</a>        <span class="kw">let </span><span class="kw-2">mut </span>pmt = PartialMerkleTree {
+<a href=#249 id=249 data-nosnippet>249</a>            num_transactions: txids.len() <span class="kw">as </span>u32,
+<a href=#250 id=250 data-nosnippet>250</a>            bits: Vec::with_capacity(txids.len()),
+<a href=#251 id=251 data-nosnippet>251</a>            hashes: <span class="macro">vec!</span>[],
+<a href=#252 id=252 data-nosnippet>252</a>        };
+<a href=#253 id=253 data-nosnippet>253</a>        <span class="comment">// calculate height of tree
+<a href=#254 id=254 data-nosnippet>254</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>height = <span class="number">0</span>;
+<a href=#255 id=255 data-nosnippet>255</a>        <span class="kw">while </span>pmt.calc_tree_width(height) &gt; <span class="number">1 </span>{
+<a href=#256 id=256 data-nosnippet>256</a>            height += <span class="number">1</span>;
+<a href=#257 id=257 data-nosnippet>257</a>        }
+<a href=#258 id=258 data-nosnippet>258</a>        <span class="comment">// traverse the partial tree
+<a href=#259 id=259 data-nosnippet>259</a>        </span>pmt.traverse_and_build(height, <span class="number">0</span>, txids, matches);
+<a href=#260 id=260 data-nosnippet>260</a>        pmt
+<a href=#261 id=261 data-nosnippet>261</a>    }
+<a href=#262 id=262 data-nosnippet>262</a>
+<a href=#263 id=263 data-nosnippet>263</a>    <span class="doccomment">/// Extract the matching txid's represented by this partial merkle tree
+<a href=#264 id=264 data-nosnippet>264</a>    /// and their respective indices within the partial tree.
+<a href=#265 id=265 data-nosnippet>265</a>    /// returns the merkle root, or error in case of failure
+<a href=#266 id=266 data-nosnippet>266</a>    </span><span class="kw">pub fn </span>extract_matches(
+<a href=#267 id=267 data-nosnippet>267</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#268 id=268 data-nosnippet>268</a>        matches: <span class="kw-2">&amp;mut </span>Vec&lt;Txid&gt;,
+<a href=#269 id=269 data-nosnippet>269</a>        indexes: <span class="kw-2">&amp;mut </span>Vec&lt;u32&gt;,
+<a href=#270 id=270 data-nosnippet>270</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;TxMerkleNode, MerkleBlockError&gt; {
+<a href=#271 id=271 data-nosnippet>271</a>        matches.clear();
+<a href=#272 id=272 data-nosnippet>272</a>        indexes.clear();
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="comment">// An empty set will not work
+<a href=#274 id=274 data-nosnippet>274</a>        </span><span class="kw">if </span><span class="self">self</span>.num_transactions == <span class="number">0 </span>{
+<a href=#275 id=275 data-nosnippet>275</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(NoTransactions);
+<a href=#276 id=276 data-nosnippet>276</a>        };
+<a href=#277 id=277 data-nosnippet>277</a>        <span class="comment">// check for excessively high numbers of transactions
+<a href=#278 id=278 data-nosnippet>278</a>        </span><span class="kw">if </span><span class="self">self</span>.num_transactions &gt; MAX_BLOCK_WEIGHT / MIN_TRANSACTION_WEIGHT {
+<a href=#279 id=279 data-nosnippet>279</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(TooManyTransactions);
+<a href=#280 id=280 data-nosnippet>280</a>        }
+<a href=#281 id=281 data-nosnippet>281</a>        <span class="comment">// there can never be more hashes provided than one for every txid
+<a href=#282 id=282 data-nosnippet>282</a>        </span><span class="kw">if </span><span class="self">self</span>.hashes.len() <span class="kw">as </span>u32 &gt; <span class="self">self</span>.num_transactions {
+<a href=#283 id=283 data-nosnippet>283</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(TooManyHashes);
+<a href=#284 id=284 data-nosnippet>284</a>        };
+<a href=#285 id=285 data-nosnippet>285</a>        <span class="comment">// there must be at least one bit per node in the partial tree, and at least one node per hash
+<a href=#286 id=286 data-nosnippet>286</a>        </span><span class="kw">if </span><span class="self">self</span>.bits.len() &lt; <span class="self">self</span>.hashes.len() {
+<a href=#287 id=287 data-nosnippet>287</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(NotEnoughBits);
+<a href=#288 id=288 data-nosnippet>288</a>        };
+<a href=#289 id=289 data-nosnippet>289</a>        <span class="comment">// calculate height of tree
+<a href=#290 id=290 data-nosnippet>290</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>height = <span class="number">0</span>;
+<a href=#291 id=291 data-nosnippet>291</a>        <span class="kw">while </span><span class="self">self</span>.calc_tree_width(height) &gt; <span class="number">1 </span>{
+<a href=#292 id=292 data-nosnippet>292</a>            height += <span class="number">1</span>;
+<a href=#293 id=293 data-nosnippet>293</a>        }
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="comment">// traverse the partial tree
+<a href=#295 id=295 data-nosnippet>295</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>bits_used = <span class="number">0u32</span>;
+<a href=#296 id=296 data-nosnippet>296</a>        <span class="kw">let </span><span class="kw-2">mut </span>hash_used = <span class="number">0u32</span>;
+<a href=#297 id=297 data-nosnippet>297</a>        <span class="kw">let </span>hash_merkle_root =
+<a href=#298 id=298 data-nosnippet>298</a>            <span class="self">self</span>.traverse_and_extract(height, <span class="number">0</span>, <span class="kw-2">&amp;mut </span>bits_used, <span class="kw-2">&amp;mut </span>hash_used, matches, indexes)<span class="question-mark">?</span>;
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="comment">// Verify that all bits were consumed (except for the padding caused by
+<a href=#300 id=300 data-nosnippet>300</a>        // serializing it as a byte sequence)
+<a href=#301 id=301 data-nosnippet>301</a>        </span><span class="kw">if </span>(bits_used + <span class="number">7</span>) / <span class="number">8 </span>!= (<span class="self">self</span>.bits.len() <span class="kw">as </span>u32 + <span class="number">7</span>) / <span class="number">8 </span>{
+<a href=#302 id=302 data-nosnippet>302</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(NotAllBitsConsumed);
+<a href=#303 id=303 data-nosnippet>303</a>        }
+<a href=#304 id=304 data-nosnippet>304</a>        <span class="comment">// Verify that all hashes were consumed
+<a href=#305 id=305 data-nosnippet>305</a>        </span><span class="kw">if </span>hash_used != <span class="self">self</span>.hashes.len() <span class="kw">as </span>u32 {
+<a href=#306 id=306 data-nosnippet>306</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(NotAllHashesConsumed);
+<a href=#307 id=307 data-nosnippet>307</a>        }
+<a href=#308 id=308 data-nosnippet>308</a>        <span class="prelude-val">Ok</span>(TxMerkleNode::from_byte_array(hash_merkle_root.to_byte_array()))
+<a href=#309 id=309 data-nosnippet>309</a>    }
+<a href=#310 id=310 data-nosnippet>310</a>
+<a href=#311 id=311 data-nosnippet>311</a>    <span class="doccomment">/// Helper function to efficiently calculate the number of nodes at given height
+<a href=#312 id=312 data-nosnippet>312</a>    /// in the merkle tree
+<a href=#313 id=313 data-nosnippet>313</a>    </span><span class="attr">#[inline]
+<a href=#314 id=314 data-nosnippet>314</a>    </span><span class="kw">fn </span>calc_tree_width(<span class="kw-2">&amp;</span><span class="self">self</span>, height: u32) -&gt; u32 {
+<a href=#315 id=315 data-nosnippet>315</a>        (<span class="self">self</span>.num_transactions + (<span class="number">1 </span>&lt;&lt; height) - <span class="number">1</span>) &gt;&gt; height
+<a href=#316 id=316 data-nosnippet>316</a>    }
+<a href=#317 id=317 data-nosnippet>317</a>
+<a href=#318 id=318 data-nosnippet>318</a>    <span class="doccomment">/// Calculate the hash of a node in the merkle tree (at leaf level: the txid's themselves)
+<a href=#319 id=319 data-nosnippet>319</a>    </span><span class="kw">fn </span>calc_hash(<span class="kw-2">&amp;</span><span class="self">self</span>, height: u32, pos: u32, txids: <span class="kw-2">&amp;</span>[Txid]) -&gt; TxMerkleNode {
+<a href=#320 id=320 data-nosnippet>320</a>        <span class="kw">if </span>height == <span class="number">0 </span>{
+<a href=#321 id=321 data-nosnippet>321</a>            <span class="comment">// Hash at height 0 is the txid itself
+<a href=#322 id=322 data-nosnippet>322</a>            </span>TxMerkleNode::from_byte_array(txids[pos <span class="kw">as </span>usize].to_byte_array())
+<a href=#323 id=323 data-nosnippet>323</a>        } <span class="kw">else </span>{
+<a href=#324 id=324 data-nosnippet>324</a>            <span class="comment">// Calculate left hash
+<a href=#325 id=325 data-nosnippet>325</a>            </span><span class="kw">let </span>left = <span class="self">self</span>.calc_hash(height - <span class="number">1</span>, pos * <span class="number">2</span>, txids);
+<a href=#326 id=326 data-nosnippet>326</a>            <span class="comment">// Calculate right hash if not beyond the end of the array - copy left hash otherwise
+<a href=#327 id=327 data-nosnippet>327</a>            </span><span class="kw">let </span>right = <span class="kw">if </span>pos * <span class="number">2 </span>+ <span class="number">1 </span>&lt; <span class="self">self</span>.calc_tree_width(height - <span class="number">1</span>) {
+<a href=#328 id=328 data-nosnippet>328</a>                <span class="self">self</span>.calc_hash(height - <span class="number">1</span>, pos * <span class="number">2 </span>+ <span class="number">1</span>, txids)
+<a href=#329 id=329 data-nosnippet>329</a>            } <span class="kw">else </span>{
+<a href=#330 id=330 data-nosnippet>330</a>                left
+<a href=#331 id=331 data-nosnippet>331</a>            };
+<a href=#332 id=332 data-nosnippet>332</a>            <span class="comment">// Combine subhashes
+<a href=#333 id=333 data-nosnippet>333</a>            </span>PartialMerkleTree::parent_hash(left, right)
+<a href=#334 id=334 data-nosnippet>334</a>        }
+<a href=#335 id=335 data-nosnippet>335</a>    }
+<a href=#336 id=336 data-nosnippet>336</a>
+<a href=#337 id=337 data-nosnippet>337</a>    <span class="doccomment">/// Recursive function that traverses tree nodes, storing the data as bits and hashes
+<a href=#338 id=338 data-nosnippet>338</a>    </span><span class="kw">fn </span>traverse_and_build(<span class="kw-2">&amp;mut </span><span class="self">self</span>, height: u32, pos: u32, txids: <span class="kw-2">&amp;</span>[Txid], matches: <span class="kw-2">&amp;</span>[bool]) {
+<a href=#339 id=339 data-nosnippet>339</a>        <span class="comment">// Determine whether this node is the parent of at least one matched txid
+<a href=#340 id=340 data-nosnippet>340</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>parent_of_match = <span class="bool-val">false</span>;
+<a href=#341 id=341 data-nosnippet>341</a>        <span class="kw">let </span><span class="kw-2">mut </span>p = pos &lt;&lt; height;
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">while </span>p &lt; (pos + <span class="number">1</span>) &lt;&lt; height &amp;&amp; p &lt; <span class="self">self</span>.num_transactions {
+<a href=#343 id=343 data-nosnippet>343</a>            parent_of_match |= matches[p <span class="kw">as </span>usize];
+<a href=#344 id=344 data-nosnippet>344</a>            p += <span class="number">1</span>;
+<a href=#345 id=345 data-nosnippet>345</a>        }
+<a href=#346 id=346 data-nosnippet>346</a>        <span class="comment">// Store as flag bit
+<a href=#347 id=347 data-nosnippet>347</a>        </span><span class="self">self</span>.bits.push(parent_of_match);
+<a href=#348 id=348 data-nosnippet>348</a>
+<a href=#349 id=349 data-nosnippet>349</a>        <span class="kw">if </span>height == <span class="number">0 </span>|| !parent_of_match {
+<a href=#350 id=350 data-nosnippet>350</a>            <span class="comment">// If at height 0, or nothing interesting below, store hash and stop
+<a href=#351 id=351 data-nosnippet>351</a>            </span><span class="kw">let </span>hash = <span class="self">self</span>.calc_hash(height, pos, txids);
+<a href=#352 id=352 data-nosnippet>352</a>            <span class="self">self</span>.hashes.push(hash);
+<a href=#353 id=353 data-nosnippet>353</a>        } <span class="kw">else </span>{
+<a href=#354 id=354 data-nosnippet>354</a>            <span class="comment">// Otherwise, don't store any hash, but descend into the subtrees
+<a href=#355 id=355 data-nosnippet>355</a>            </span><span class="self">self</span>.traverse_and_build(height - <span class="number">1</span>, pos * <span class="number">2</span>, txids, matches);
+<a href=#356 id=356 data-nosnippet>356</a>            <span class="kw">if </span>pos * <span class="number">2 </span>+ <span class="number">1 </span>&lt; <span class="self">self</span>.calc_tree_width(height - <span class="number">1</span>) {
+<a href=#357 id=357 data-nosnippet>357</a>                <span class="self">self</span>.traverse_and_build(height - <span class="number">1</span>, pos * <span class="number">2 </span>+ <span class="number">1</span>, txids, matches);
+<a href=#358 id=358 data-nosnippet>358</a>            }
+<a href=#359 id=359 data-nosnippet>359</a>        }
+<a href=#360 id=360 data-nosnippet>360</a>    }
+<a href=#361 id=361 data-nosnippet>361</a>
+<a href=#362 id=362 data-nosnippet>362</a>    <span class="doccomment">/// Recursive function that traverses tree nodes, consuming the bits and hashes produced by
+<a href=#363 id=363 data-nosnippet>363</a>    /// TraverseAndBuild. It returns the hash of the respective node and its respective index.
+<a href=#364 id=364 data-nosnippet>364</a>    </span><span class="kw">fn </span>traverse_and_extract(
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#366 id=366 data-nosnippet>366</a>        height: u32,
+<a href=#367 id=367 data-nosnippet>367</a>        pos: u32,
+<a href=#368 id=368 data-nosnippet>368</a>        bits_used: <span class="kw-2">&amp;mut </span>u32,
+<a href=#369 id=369 data-nosnippet>369</a>        hash_used: <span class="kw-2">&amp;mut </span>u32,
+<a href=#370 id=370 data-nosnippet>370</a>        matches: <span class="kw-2">&amp;mut </span>Vec&lt;Txid&gt;,
+<a href=#371 id=371 data-nosnippet>371</a>        indexes: <span class="kw-2">&amp;mut </span>Vec&lt;u32&gt;,
+<a href=#372 id=372 data-nosnippet>372</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;TxMerkleNode, MerkleBlockError&gt; {
+<a href=#373 id=373 data-nosnippet>373</a>        <span class="kw">if </span><span class="kw-2">*</span>bits_used <span class="kw">as </span>usize &gt;= <span class="self">self</span>.bits.len() {
+<a href=#374 id=374 data-nosnippet>374</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(BitsArrayOverflow);
+<a href=#375 id=375 data-nosnippet>375</a>        }
+<a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">let </span>parent_of_match = <span class="self">self</span>.bits[<span class="kw-2">*</span>bits_used <span class="kw">as </span>usize];
+<a href=#377 id=377 data-nosnippet>377</a>        <span class="kw-2">*</span>bits_used += <span class="number">1</span>;
+<a href=#378 id=378 data-nosnippet>378</a>        <span class="kw">if </span>height == <span class="number">0 </span>|| !parent_of_match {
+<a href=#379 id=379 data-nosnippet>379</a>            <span class="comment">// If at height 0, or nothing interesting below, use stored hash and do not descend
+<a href=#380 id=380 data-nosnippet>380</a>            </span><span class="kw">if </span><span class="kw-2">*</span>hash_used <span class="kw">as </span>usize &gt;= <span class="self">self</span>.hashes.len() {
+<a href=#381 id=381 data-nosnippet>381</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(HashesArrayOverflow);
+<a href=#382 id=382 data-nosnippet>382</a>            }
+<a href=#383 id=383 data-nosnippet>383</a>            <span class="kw">let </span>hash = <span class="self">self</span>.hashes[<span class="kw-2">*</span>hash_used <span class="kw">as </span>usize];
+<a href=#384 id=384 data-nosnippet>384</a>            <span class="kw-2">*</span>hash_used += <span class="number">1</span>;
+<a href=#385 id=385 data-nosnippet>385</a>            <span class="kw">if </span>height == <span class="number">0 </span>&amp;&amp; parent_of_match {
+<a href=#386 id=386 data-nosnippet>386</a>                <span class="comment">// in case of height 0, we have a matched txid
+<a href=#387 id=387 data-nosnippet>387</a>                </span>matches.push(Txid::from_byte_array(hash.to_byte_array()));
+<a href=#388 id=388 data-nosnippet>388</a>                indexes.push(pos);
+<a href=#389 id=389 data-nosnippet>389</a>            }
+<a href=#390 id=390 data-nosnippet>390</a>            <span class="prelude-val">Ok</span>(hash)
+<a href=#391 id=391 data-nosnippet>391</a>        } <span class="kw">else </span>{
+<a href=#392 id=392 data-nosnippet>392</a>            <span class="comment">// otherwise, descend into the subtrees to extract matched txids and hashes
+<a href=#393 id=393 data-nosnippet>393</a>            </span><span class="kw">let </span>left = <span class="self">self</span>.traverse_and_extract(
+<a href=#394 id=394 data-nosnippet>394</a>                height - <span class="number">1</span>,
+<a href=#395 id=395 data-nosnippet>395</a>                pos * <span class="number">2</span>,
+<a href=#396 id=396 data-nosnippet>396</a>                bits_used,
+<a href=#397 id=397 data-nosnippet>397</a>                hash_used,
+<a href=#398 id=398 data-nosnippet>398</a>                matches,
+<a href=#399 id=399 data-nosnippet>399</a>                indexes,
+<a href=#400 id=400 data-nosnippet>400</a>            )<span class="question-mark">?</span>;
+<a href=#401 id=401 data-nosnippet>401</a>            <span class="kw">let </span>right;
+<a href=#402 id=402 data-nosnippet>402</a>            <span class="kw">if </span>pos * <span class="number">2 </span>+ <span class="number">1 </span>&lt; <span class="self">self</span>.calc_tree_width(height - <span class="number">1</span>) {
+<a href=#403 id=403 data-nosnippet>403</a>                right = <span class="self">self</span>.traverse_and_extract(
+<a href=#404 id=404 data-nosnippet>404</a>                    height - <span class="number">1</span>,
+<a href=#405 id=405 data-nosnippet>405</a>                    pos * <span class="number">2 </span>+ <span class="number">1</span>,
+<a href=#406 id=406 data-nosnippet>406</a>                    bits_used,
+<a href=#407 id=407 data-nosnippet>407</a>                    hash_used,
+<a href=#408 id=408 data-nosnippet>408</a>                    matches,
+<a href=#409 id=409 data-nosnippet>409</a>                    indexes,
+<a href=#410 id=410 data-nosnippet>410</a>                )<span class="question-mark">?</span>;
+<a href=#411 id=411 data-nosnippet>411</a>                <span class="kw">if </span>right == left {
+<a href=#412 id=412 data-nosnippet>412</a>                    <span class="comment">// The left and right branches should never be identical, as the transaction
+<a href=#413 id=413 data-nosnippet>413</a>                    // hashes covered by them must each be unique.
+<a href=#414 id=414 data-nosnippet>414</a>                    </span><span class="kw">return </span><span class="prelude-val">Err</span>(IdenticalHashesFound);
+<a href=#415 id=415 data-nosnippet>415</a>                }
+<a href=#416 id=416 data-nosnippet>416</a>            } <span class="kw">else </span>{
+<a href=#417 id=417 data-nosnippet>417</a>                right = left;
+<a href=#418 id=418 data-nosnippet>418</a>            }
+<a href=#419 id=419 data-nosnippet>419</a>            <span class="comment">// and combine them before returning
+<a href=#420 id=420 data-nosnippet>420</a>            </span><span class="prelude-val">Ok</span>(PartialMerkleTree::parent_hash(left, right))
+<a href=#421 id=421 data-nosnippet>421</a>        }
+<a href=#422 id=422 data-nosnippet>422</a>    }
+<a href=#423 id=423 data-nosnippet>423</a>
+<a href=#424 id=424 data-nosnippet>424</a>    <span class="doccomment">/// Helper method to produce SHA256D(left + right)
+<a href=#425 id=425 data-nosnippet>425</a>    </span><span class="kw">fn </span>parent_hash(left: TxMerkleNode, right: TxMerkleNode) -&gt; TxMerkleNode {
+<a href=#426 id=426 data-nosnippet>426</a>        <span class="kw">let </span><span class="kw-2">mut </span>encoder = TxMerkleNode::engine();
+<a href=#427 id=427 data-nosnippet>427</a>        left.consensus_encode(<span class="kw-2">&amp;mut </span>encoder).expect(<span class="string">"engines don't error"</span>);
+<a href=#428 id=428 data-nosnippet>428</a>        right.consensus_encode(<span class="kw-2">&amp;mut </span>encoder).expect(<span class="string">"engines don't error"</span>);
+<a href=#429 id=429 data-nosnippet>429</a>        TxMerkleNode::from_engine(encoder)
+<a href=#430 id=430 data-nosnippet>430</a>    }
+<a href=#431 id=431 data-nosnippet>431</a>}
+<a href=#432 id=432 data-nosnippet>432</a>
+<a href=#433 id=433 data-nosnippet>433</a><span class="kw">impl </span>Encodable <span class="kw">for </span>PartialMerkleTree {
+<a href=#434 id=434 data-nosnippet>434</a>    <span class="kw">fn </span>consensus_encode&lt;W: io::Write + <span class="question-mark">?</span>Sized&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, w: <span class="kw-2">&amp;mut </span>W) -&gt; <span class="prelude-ty">Result</span>&lt;usize, io::Error&gt; {
+<a href=#435 id=435 data-nosnippet>435</a>        <span class="kw">let </span>ret = <span class="self">self</span>.num_transactions.consensus_encode(w)<span class="question-mark">? </span>+ <span class="self">self</span>.hashes.consensus_encode(w)<span class="question-mark">?</span>;
+<a href=#436 id=436 data-nosnippet>436</a>        <span class="kw">let </span><span class="kw-2">mut </span>bytes: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0</span>; (<span class="self">self</span>.bits.len() + <span class="number">7</span>) / <span class="number">8</span>];
+<a href=#437 id=437 data-nosnippet>437</a>        <span class="kw">for </span>p <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.bits.len() {
+<a href=#438 id=438 data-nosnippet>438</a>            bytes[p / <span class="number">8</span>] |= (<span class="self">self</span>.bits[p] <span class="kw">as </span>u8) &lt;&lt; (p % <span class="number">8</span>) <span class="kw">as </span>u8;
+<a href=#439 id=439 data-nosnippet>439</a>        }
+<a href=#440 id=440 data-nosnippet>440</a>        <span class="prelude-val">Ok</span>(ret + bytes.consensus_encode(w)<span class="question-mark">?</span>)
+<a href=#441 id=441 data-nosnippet>441</a>    }
+<a href=#442 id=442 data-nosnippet>442</a>}
+<a href=#443 id=443 data-nosnippet>443</a>
+<a href=#444 id=444 data-nosnippet>444</a><span class="kw">impl </span>Decodable <span class="kw">for </span>PartialMerkleTree {
+<a href=#445 id=445 data-nosnippet>445</a>    <span class="kw">fn </span>consensus_decode&lt;R: io::Read + <span class="question-mark">?</span>Sized&gt;(r: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, encode::Error&gt; {
+<a href=#446 id=446 data-nosnippet>446</a>        <span class="kw">let </span>num_transactions: u32 = Decodable::consensus_decode(r)<span class="question-mark">?</span>;
+<a href=#447 id=447 data-nosnippet>447</a>        <span class="kw">let </span>hashes: Vec&lt;TxMerkleNode&gt; = Decodable::consensus_decode(r)<span class="question-mark">?</span>;
+<a href=#448 id=448 data-nosnippet>448</a>
+<a href=#449 id=449 data-nosnippet>449</a>        <span class="kw">let </span>bytes: Vec&lt;u8&gt; = Decodable::consensus_decode(r)<span class="question-mark">?</span>;
+<a href=#450 id=450 data-nosnippet>450</a>        <span class="kw">let </span><span class="kw-2">mut </span>bits: Vec&lt;bool&gt; = <span class="macro">vec!</span>[<span class="bool-val">false</span>; bytes.len() * <span class="number">8</span>];
+<a href=#451 id=451 data-nosnippet>451</a>
+<a href=#452 id=452 data-nosnippet>452</a>        <span class="kw">for </span>(p, bit) <span class="kw">in </span>bits.iter_mut().enumerate() {
+<a href=#453 id=453 data-nosnippet>453</a>            <span class="kw-2">*</span>bit = (bytes[p / <span class="number">8</span>] &amp; (<span class="number">1 </span>&lt;&lt; (p % <span class="number">8</span>) <span class="kw">as </span>u8)) != <span class="number">0</span>;
+<a href=#454 id=454 data-nosnippet>454</a>        }
+<a href=#455 id=455 data-nosnippet>455</a>        <span class="prelude-val">Ok</span>(PartialMerkleTree { num_transactions, hashes, bits })
+<a href=#456 id=456 data-nosnippet>456</a>    }
+<a href=#457 id=457 data-nosnippet>457</a>}
+<a href=#458 id=458 data-nosnippet>458</a>
+<a href=#459 id=459 data-nosnippet>459</a><span class="doccomment">/// An error when verifying the merkle block.
+<a href=#460 id=460 data-nosnippet>460</a></span><span class="attr">#[derive(Clone, PartialEq, Eq, Debug)]
+<a href=#461 id=461 data-nosnippet>461</a>#[non_exhaustive]
+<a href=#462 id=462 data-nosnippet>462</a></span><span class="kw">pub enum </span>MerkleBlockError {
+<a href=#463 id=463 data-nosnippet>463</a>    <span class="doccomment">/// Merkle root in the header doesn't match to the root calculated from partial merkle tree.
+<a href=#464 id=464 data-nosnippet>464</a>    </span>MerkleRootMismatch,
+<a href=#465 id=465 data-nosnippet>465</a>    <span class="doccomment">/// Partial merkle tree contains no transactions.
+<a href=#466 id=466 data-nosnippet>466</a>    </span>NoTransactions,
+<a href=#467 id=467 data-nosnippet>467</a>    <span class="doccomment">/// There are too many transactions.
+<a href=#468 id=468 data-nosnippet>468</a>    </span>TooManyTransactions,
+<a href=#469 id=469 data-nosnippet>469</a>    <span class="doccomment">/// There are too many hashes
+<a href=#470 id=470 data-nosnippet>470</a>    </span>TooManyHashes,
+<a href=#471 id=471 data-nosnippet>471</a>    <span class="doccomment">/// There must be at least one bit per node in the partial tree,
+<a href=#472 id=472 data-nosnippet>472</a>    /// and at least one node per hash
+<a href=#473 id=473 data-nosnippet>473</a>    </span>NotEnoughBits,
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="doccomment">/// Not all bits were consumed
+<a href=#475 id=475 data-nosnippet>475</a>    </span>NotAllBitsConsumed,
+<a href=#476 id=476 data-nosnippet>476</a>    <span class="doccomment">/// Not all hashes were consumed
+<a href=#477 id=477 data-nosnippet>477</a>    </span>NotAllHashesConsumed,
+<a href=#478 id=478 data-nosnippet>478</a>    <span class="doccomment">/// Overflowed the bits array
+<a href=#479 id=479 data-nosnippet>479</a>    </span>BitsArrayOverflow,
+<a href=#480 id=480 data-nosnippet>480</a>    <span class="doccomment">/// Overflowed the hashes array
+<a href=#481 id=481 data-nosnippet>481</a>    </span>HashesArrayOverflow,
+<a href=#482 id=482 data-nosnippet>482</a>    <span class="doccomment">/// The left and right branches should never be identical
+<a href=#483 id=483 data-nosnippet>483</a>    </span>IdenticalHashesFound,
+<a href=#484 id=484 data-nosnippet>484</a>}
+<a href=#485 id=485 data-nosnippet>485</a>
+<a href=#486 id=486 data-nosnippet>486</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>MerkleBlockError {
+<a href=#487 id=487 data-nosnippet>487</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter) -&gt; fmt::Result {
+<a href=#488 id=488 data-nosnippet>488</a>        <span class="kw">use </span><span class="self">self</span>::MerkleBlockError::<span class="kw-2">*</span>;
+<a href=#489 id=489 data-nosnippet>489</a>
+<a href=#490 id=490 data-nosnippet>490</a>        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+<a href=#491 id=491 data-nosnippet>491</a>            MerkleRootMismatch =&gt; <span class="macro">write!</span>(f, <span class="string">"merkle header root doesn't match to the root calculated from the partial merkle tree"</span>),
+<a href=#492 id=492 data-nosnippet>492</a>            NoTransactions =&gt; <span class="macro">write!</span>(f, <span class="string">"partial merkle tree contains no transactions"</span>),
+<a href=#493 id=493 data-nosnippet>493</a>            TooManyTransactions =&gt; <span class="macro">write!</span>(f, <span class="string">"too many transactions"</span>),
+<a href=#494 id=494 data-nosnippet>494</a>            TooManyHashes =&gt; <span class="macro">write!</span>(f, <span class="string">"proof contains more hashes than transactions"</span>),
+<a href=#495 id=495 data-nosnippet>495</a>            NotEnoughBits =&gt; <span class="macro">write!</span>(f, <span class="string">"proof contains less bits than hashes"</span>),
+<a href=#496 id=496 data-nosnippet>496</a>            NotAllBitsConsumed =&gt; <span class="macro">write!</span>(f, <span class="string">"not all bit were consumed"</span>),
+<a href=#497 id=497 data-nosnippet>497</a>            NotAllHashesConsumed =&gt; <span class="macro">write!</span>(f, <span class="string">"not all hashes were consumed"</span>),
+<a href=#498 id=498 data-nosnippet>498</a>            BitsArrayOverflow =&gt; <span class="macro">write!</span>(f, <span class="string">"overflowed the bits array"</span>),
+<a href=#499 id=499 data-nosnippet>499</a>            HashesArrayOverflow =&gt; <span class="macro">write!</span>(f, <span class="string">"overflowed the hashes array"</span>),
+<a href=#500 id=500 data-nosnippet>500</a>            IdenticalHashesFound =&gt; <span class="macro">write!</span>(f, <span class="string">"found identical transaction hashes"</span>),
+<a href=#501 id=501 data-nosnippet>501</a>        }
+<a href=#502 id=502 data-nosnippet>502</a>    }
+<a href=#503 id=503 data-nosnippet>503</a>}
+<a href=#504 id=504 data-nosnippet>504</a>
+<a href=#505 id=505 data-nosnippet>505</a><span class="attr">#[cfg(feature = <span class="string">"std"</span>)]
+<a href=#506 id=506 data-nosnippet>506</a>#[cfg_attr(docsrs, doc(cfg(feature = <span class="string">"std"</span>)))]
+<a href=#507 id=507 data-nosnippet>507</a></span><span class="kw">impl </span>std::error::Error <span class="kw">for </span>MerkleBlockError {
+<a href=#508 id=508 data-nosnippet>508</a>    <span class="kw">fn </span>source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>(<span class="kw">dyn </span>std::error::Error + <span class="lifetime">'static</span>)&gt; {
+<a href=#509 id=509 data-nosnippet>509</a>        <span class="kw">use </span><span class="self">self</span>::MerkleBlockError::<span class="kw-2">*</span>;
+<a href=#510 id=510 data-nosnippet>510</a>
+<a href=#511 id=511 data-nosnippet>511</a>        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+<a href=#512 id=512 data-nosnippet>512</a>            MerkleRootMismatch | NoTransactions | TooManyTransactions | TooManyHashes
+<a href=#513 id=513 data-nosnippet>513</a>            | NotEnoughBits | NotAllBitsConsumed | NotAllHashesConsumed | BitsArrayOverflow
+<a href=#514 id=514 data-nosnippet>514</a>            | HashesArrayOverflow | IdenticalHashesFound =&gt; <span class="prelude-val">None</span>,
+<a href=#515 id=515 data-nosnippet>515</a>        }
+<a href=#516 id=516 data-nosnippet>516</a>    }
+<a href=#517 id=517 data-nosnippet>517</a>}
+<a href=#518 id=518 data-nosnippet>518</a>
+<a href=#519 id=519 data-nosnippet>519</a><span class="attr">#[cfg(test)]
+<a href=#520 id=520 data-nosnippet>520</a></span><span class="kw">mod </span>tests {
+<a href=#521 id=521 data-nosnippet>521</a>    <span class="attr">#[cfg(feature = <span class="string">"rand-std"</span>)]
+<a href=#522 id=522 data-nosnippet>522</a>    </span><span class="kw">use </span>secp256k1::rand::prelude::<span class="kw-2">*</span>;
+<a href=#523 id=523 data-nosnippet>523</a>
+<a href=#524 id=524 data-nosnippet>524</a>    <span class="kw">use </span>super::<span class="kw-2">*</span>;
+<a href=#525 id=525 data-nosnippet>525</a>    <span class="kw">use </span><span class="kw">crate</span>::consensus::encode::{deserialize, serialize};
+<a href=#526 id=526 data-nosnippet>526</a>    <span class="attr">#[cfg(feature = <span class="string">"rand-std"</span>)]
+<a href=#527 id=527 data-nosnippet>527</a>    </span><span class="kw">use </span><span class="kw">crate</span>::hash_types::TxMerkleNode;
+<a href=#528 id=528 data-nosnippet>528</a>    <span class="attr">#[cfg(feature = <span class="string">"rand-std"</span>)]
+<a href=#529 id=529 data-nosnippet>529</a>    </span><span class="kw">use </span><span class="kw">crate</span>::hashes::Hash;
+<a href=#530 id=530 data-nosnippet>530</a>    <span class="kw">use </span><span class="kw">crate</span>::internal_macros::hex;
+<a href=#531 id=531 data-nosnippet>531</a>    <span class="kw">use </span>crate::{Block, Txid};
+<a href=#532 id=532 data-nosnippet>532</a>
+<a href=#533 id=533 data-nosnippet>533</a>    <span class="attr">#[cfg(feature = <span class="string">"rand-std"</span>)]
+<a href=#534 id=534 data-nosnippet>534</a>    </span><span class="macro">macro_rules!</span> pmt_tests {
+<a href=#535 id=535 data-nosnippet>535</a>        ($(<span class="macro-nonterminal">$name</span>:ident),* $(,)<span class="question-mark">?</span>) =&gt; {
+<a href=#536 id=536 data-nosnippet>536</a>            $(
+<a href=#537 id=537 data-nosnippet>537</a>                <span class="attr">#[test]
+<a href=#538 id=538 data-nosnippet>538</a>                </span><span class="kw">fn </span><span class="macro-nonterminal">$name</span>() {
+<a href=#539 id=539 data-nosnippet>539</a>                    pmt_test_from_name(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$name</span>));
+<a href=#540 id=540 data-nosnippet>540</a>                }
+<a href=#541 id=541 data-nosnippet>541</a>            )*
+<a href=#542 id=542 data-nosnippet>542</a>        }
+<a href=#543 id=543 data-nosnippet>543</a>    }
+<a href=#544 id=544 data-nosnippet>544</a>
+<a href=#545 id=545 data-nosnippet>545</a>    <span class="attr">#[cfg(feature = <span class="string">"rand-std"</span>)]
+<a href=#546 id=546 data-nosnippet>546</a>    </span><span class="macro">pmt_tests!</span>(
+<a href=#547 id=547 data-nosnippet>547</a>        pmt_test_1,
+<a href=#548 id=548 data-nosnippet>548</a>        pmt_test_4,
+<a href=#549 id=549 data-nosnippet>549</a>        pmt_test_7,
+<a href=#550 id=550 data-nosnippet>550</a>        pmt_test_17,
+<a href=#551 id=551 data-nosnippet>551</a>        pmt_test_56,
+<a href=#552 id=552 data-nosnippet>552</a>        pmt_test_100,
+<a href=#553 id=553 data-nosnippet>553</a>        pmt_test_127,
+<a href=#554 id=554 data-nosnippet>554</a>        pmt_test_256,
+<a href=#555 id=555 data-nosnippet>555</a>        pmt_test_312,
+<a href=#556 id=556 data-nosnippet>556</a>        pmt_test_513,
+<a href=#557 id=557 data-nosnippet>557</a>        pmt_test_1000,
+<a href=#558 id=558 data-nosnippet>558</a>        pmt_test_4095
+<a href=#559 id=559 data-nosnippet>559</a>    );
+<a href=#560 id=560 data-nosnippet>560</a>
+<a href=#561 id=561 data-nosnippet>561</a>    <span class="doccomment">/// Parses the transaction count out of `name` with form: `pmt_test_$num`.
+<a href=#562 id=562 data-nosnippet>562</a>    </span><span class="attr">#[cfg(feature = <span class="string">"rand-std"</span>)]
+<a href=#563 id=563 data-nosnippet>563</a>    </span><span class="kw">fn </span>pmt_test_from_name(name: <span class="kw-2">&amp;</span>str) { pmt_test(name[<span class="number">9</span>..].parse().unwrap()) }
+<a href=#564 id=564 data-nosnippet>564</a>
+<a href=#565 id=565 data-nosnippet>565</a>    <span class="attr">#[cfg(feature = <span class="string">"rand-std"</span>)]
+<a href=#566 id=566 data-nosnippet>566</a>    </span><span class="kw">fn </span>pmt_test(tx_count: usize) {
+<a href=#567 id=567 data-nosnippet>567</a>        <span class="kw">use </span>core::cmp::min;
+<a href=#568 id=568 data-nosnippet>568</a>
+<a href=#569 id=569 data-nosnippet>569</a>        <span class="kw">use </span><span class="kw">crate</span>::merkle_tree;
+<a href=#570 id=570 data-nosnippet>570</a>
+<a href=#571 id=571 data-nosnippet>571</a>        <span class="kw">let </span><span class="kw-2">mut </span>rng = thread_rng();
+<a href=#572 id=572 data-nosnippet>572</a>        <span class="comment">// Create some fake tx ids
+<a href=#573 id=573 data-nosnippet>573</a>        </span><span class="kw">let </span>tx_ids = (<span class="number">1</span>..=tx_count)
+<a href=#574 id=574 data-nosnippet>574</a>            .map(|i| <span class="macro">format!</span>(<span class="string">"{:064x}"</span>, i).parse::&lt;Txid&gt;().unwrap())
+<a href=#575 id=575 data-nosnippet>575</a>            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#576 id=576 data-nosnippet>576</a>
+<a href=#577 id=577 data-nosnippet>577</a>        <span class="comment">// Calculate the merkle root and height
+<a href=#578 id=578 data-nosnippet>578</a>        </span><span class="kw">let </span>hashes = tx_ids.iter().map(|t| t.to_raw_hash());
+<a href=#579 id=579 data-nosnippet>579</a>        <span class="kw">let </span>merkle_root_1: TxMerkleNode =
+<a href=#580 id=580 data-nosnippet>580</a>            merkle_tree::calculate_root(hashes).expect(<span class="string">"hashes is not empty"</span>).into();
+<a href=#581 id=581 data-nosnippet>581</a>        <span class="kw">let </span><span class="kw-2">mut </span>height = <span class="number">1</span>;
+<a href=#582 id=582 data-nosnippet>582</a>        <span class="kw">let </span><span class="kw-2">mut </span>ntx = tx_count;
+<a href=#583 id=583 data-nosnippet>583</a>        <span class="kw">while </span>ntx &gt; <span class="number">1 </span>{
+<a href=#584 id=584 data-nosnippet>584</a>            ntx = (ntx + <span class="number">1</span>) / <span class="number">2</span>;
+<a href=#585 id=585 data-nosnippet>585</a>            height += <span class="number">1</span>;
+<a href=#586 id=586 data-nosnippet>586</a>        }
+<a href=#587 id=587 data-nosnippet>587</a>
+<a href=#588 id=588 data-nosnippet>588</a>        <span class="comment">// Check with random subsets with inclusion chances 1, 1/2, 1/4, ..., 1/128
+<a href=#589 id=589 data-nosnippet>589</a>        </span><span class="kw">for </span>att <span class="kw">in </span><span class="number">1</span>..<span class="number">15 </span>{
+<a href=#590 id=590 data-nosnippet>590</a>            <span class="kw">let </span><span class="kw-2">mut </span>matches = <span class="macro">vec!</span>[<span class="bool-val">false</span>; tx_count];
+<a href=#591 id=591 data-nosnippet>591</a>            <span class="kw">let </span><span class="kw-2">mut </span>match_txid1 = <span class="macro">vec!</span>[];
+<a href=#592 id=592 data-nosnippet>592</a>            <span class="kw">for </span>j <span class="kw">in </span><span class="number">0</span>..tx_count {
+<a href=#593 id=593 data-nosnippet>593</a>                <span class="comment">// Generate `att / 2` random bits
+<a href=#594 id=594 data-nosnippet>594</a>                </span><span class="kw">let </span>rand_bits = <span class="kw">match </span>att / <span class="number">2 </span>{
+<a href=#595 id=595 data-nosnippet>595</a>                    <span class="number">0 </span>=&gt; <span class="number">0</span>,
+<a href=#596 id=596 data-nosnippet>596</a>                    bits =&gt; rng.<span class="kw">gen</span>::&lt;u64&gt;() &gt;&gt; (<span class="number">64 </span>- bits),
+<a href=#597 id=597 data-nosnippet>597</a>                };
+<a href=#598 id=598 data-nosnippet>598</a>                <span class="kw">let </span>include = rand_bits == <span class="number">0</span>;
+<a href=#599 id=599 data-nosnippet>599</a>                matches[j] = include;
+<a href=#600 id=600 data-nosnippet>600</a>
+<a href=#601 id=601 data-nosnippet>601</a>                <span class="kw">if </span>include {
+<a href=#602 id=602 data-nosnippet>602</a>                    match_txid1.push(tx_ids[j]);
+<a href=#603 id=603 data-nosnippet>603</a>                };
+<a href=#604 id=604 data-nosnippet>604</a>            }
+<a href=#605 id=605 data-nosnippet>605</a>
+<a href=#606 id=606 data-nosnippet>606</a>            <span class="comment">// Build the partial merkle tree
+<a href=#607 id=607 data-nosnippet>607</a>            </span><span class="kw">let </span>pmt1 = PartialMerkleTree::from_txids(<span class="kw-2">&amp;</span>tx_ids, <span class="kw-2">&amp;</span>matches);
+<a href=#608 id=608 data-nosnippet>608</a>            <span class="kw">let </span>serialized = serialize(<span class="kw-2">&amp;</span>pmt1);
+<a href=#609 id=609 data-nosnippet>609</a>
+<a href=#610 id=610 data-nosnippet>610</a>            <span class="comment">// Verify PartialMerkleTree's size guarantees
+<a href=#611 id=611 data-nosnippet>611</a>            </span><span class="kw">let </span>n = min(tx_count, <span class="number">1 </span>+ match_txid1.len() * height);
+<a href=#612 id=612 data-nosnippet>612</a>            <span class="macro">assert!</span>(serialized.len() &lt;= <span class="number">10 </span>+ (<span class="number">258 </span>* n + <span class="number">7</span>) / <span class="number">8</span>);
+<a href=#613 id=613 data-nosnippet>613</a>
+<a href=#614 id=614 data-nosnippet>614</a>            <span class="comment">// Deserialize into a tester copy
+<a href=#615 id=615 data-nosnippet>615</a>            </span><span class="kw">let </span>pmt2: PartialMerkleTree =
+<a href=#616 id=616 data-nosnippet>616</a>                deserialize(<span class="kw-2">&amp;</span>serialized).expect(<span class="string">"Could not deserialize own data"</span>);
+<a href=#617 id=617 data-nosnippet>617</a>
+<a href=#618 id=618 data-nosnippet>618</a>            <span class="comment">// Extract merkle root and matched txids from copy
+<a href=#619 id=619 data-nosnippet>619</a>            </span><span class="kw">let </span><span class="kw-2">mut </span>match_txid2: Vec&lt;Txid&gt; = <span class="macro">vec!</span>[];
+<a href=#620 id=620 data-nosnippet>620</a>            <span class="kw">let </span><span class="kw-2">mut </span>indexes = <span class="macro">vec!</span>[];
+<a href=#621 id=621 data-nosnippet>621</a>            <span class="kw">let </span>merkle_root_2 = pmt2
+<a href=#622 id=622 data-nosnippet>622</a>                .extract_matches(<span class="kw-2">&amp;mut </span>match_txid2, <span class="kw-2">&amp;mut </span>indexes)
+<a href=#623 id=623 data-nosnippet>623</a>                .expect(<span class="string">"Could not extract matches"</span>);
+<a href=#624 id=624 data-nosnippet>624</a>
+<a href=#625 id=625 data-nosnippet>625</a>            <span class="comment">// Check that it has the same merkle root as the original, and a valid one
+<a href=#626 id=626 data-nosnippet>626</a>            </span><span class="macro">assert_eq!</span>(merkle_root_1, merkle_root_2);
+<a href=#627 id=627 data-nosnippet>627</a>            <span class="macro">assert_ne!</span>(merkle_root_2, TxMerkleNode::all_zeros());
+<a href=#628 id=628 data-nosnippet>628</a>
+<a href=#629 id=629 data-nosnippet>629</a>            <span class="comment">// check that it contains the matched transactions (in the same order!)
+<a href=#630 id=630 data-nosnippet>630</a>            </span><span class="macro">assert_eq!</span>(match_txid1, match_txid2);
+<a href=#631 id=631 data-nosnippet>631</a>
+<a href=#632 id=632 data-nosnippet>632</a>            <span class="comment">// check that random bit flips break the authentication
+<a href=#633 id=633 data-nosnippet>633</a>            </span><span class="kw">for _ in </span><span class="number">0</span>..<span class="number">4 </span>{
+<a href=#634 id=634 data-nosnippet>634</a>                <span class="kw">let </span><span class="kw-2">mut </span>pmt3: PartialMerkleTree = deserialize(<span class="kw-2">&amp;</span>serialized).unwrap();
+<a href=#635 id=635 data-nosnippet>635</a>                pmt3.damage(<span class="kw-2">&amp;mut </span>rng);
+<a href=#636 id=636 data-nosnippet>636</a>                <span class="kw">let </span><span class="kw-2">mut </span>match_txid3 = <span class="macro">vec!</span>[];
+<a href=#637 id=637 data-nosnippet>637</a>                <span class="kw">let </span>merkle_root_3 = pmt3.extract_matches(<span class="kw-2">&amp;mut </span>match_txid3, <span class="kw-2">&amp;mut </span>indexes).unwrap();
+<a href=#638 id=638 data-nosnippet>638</a>                <span class="macro">assert_ne!</span>(merkle_root_3, merkle_root_1);
+<a href=#639 id=639 data-nosnippet>639</a>            }
+<a href=#640 id=640 data-nosnippet>640</a>        }
+<a href=#641 id=641 data-nosnippet>641</a>    }
+<a href=#642 id=642 data-nosnippet>642</a>
+<a href=#643 id=643 data-nosnippet>643</a>    <span class="attr">#[test]
+<a href=#644 id=644 data-nosnippet>644</a>    </span><span class="kw">fn </span>pmt_malleability() {
+<a href=#645 id=645 data-nosnippet>645</a>        <span class="comment">// Create some fake tx ids with the last 2 hashes repeating
+<a href=#646 id=646 data-nosnippet>646</a>        </span><span class="kw">let </span>txids: Vec&lt;Txid&gt; = [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">9</span>, <span class="number">10</span>]
+<a href=#647 id=647 data-nosnippet>647</a>            .iter()
+<a href=#648 id=648 data-nosnippet>648</a>            .map(|i| <span class="macro">format!</span>(<span class="string">"{:064x}"</span>, i).parse::&lt;Txid&gt;().unwrap())
+<a href=#649 id=649 data-nosnippet>649</a>            .collect();
+<a href=#650 id=650 data-nosnippet>650</a>
+<a href=#651 id=651 data-nosnippet>651</a>        <span class="kw">let </span>matches =
+<a href=#652 id=652 data-nosnippet>652</a>            <span class="macro">vec!</span>[<span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="bool-val">false</span>];
+<a href=#653 id=653 data-nosnippet>653</a>
+<a href=#654 id=654 data-nosnippet>654</a>        <span class="kw">let </span>tree = PartialMerkleTree::from_txids(<span class="kw-2">&amp;</span>txids, <span class="kw-2">&amp;</span>matches);
+<a href=#655 id=655 data-nosnippet>655</a>        <span class="comment">// Should fail due to duplicate txs found
+<a href=#656 id=656 data-nosnippet>656</a>        </span><span class="kw">let </span>result = tree.extract_matches(<span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[], <span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[]);
+<a href=#657 id=657 data-nosnippet>657</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#658 id=658 data-nosnippet>658</a>    }
+<a href=#659 id=659 data-nosnippet>659</a>
+<a href=#660 id=660 data-nosnippet>660</a>    <span class="attr">#[test]
+<a href=#661 id=661 data-nosnippet>661</a>    </span><span class="kw">fn </span>merkleblock_serialization() {
+<a href=#662 id=662 data-nosnippet>662</a>        <span class="comment">// Got it by running the rpc call
+<a href=#663 id=663 data-nosnippet>663</a>        // `gettxoutproof '["220ebc64e21abece964927322cba69180ed853bb187fbc6923bac7d010b9d87a"]'`
+<a href=#664 id=664 data-nosnippet>664</a>        </span><span class="kw">let </span>mb_hex = <span class="macro">include_str!</span>(<span class="string">"../../tests/data/merkle_block.hex"</span>);
+<a href=#665 id=665 data-nosnippet>665</a>
+<a href=#666 id=666 data-nosnippet>666</a>        <span class="kw">let </span>mb: MerkleBlock = deserialize(<span class="kw-2">&amp;</span><span class="macro">hex!</span>(mb_hex)).unwrap();
+<a href=#667 id=667 data-nosnippet>667</a>        <span class="macro">assert_eq!</span>(get_block_13b8a().block_hash(), mb.header.block_hash());
+<a href=#668 id=668 data-nosnippet>668</a>        <span class="macro">assert_eq!</span>(
+<a href=#669 id=669 data-nosnippet>669</a>            mb.header.merkle_root,
+<a href=#670 id=670 data-nosnippet>670</a>            mb.txn.extract_matches(<span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[], <span class="kw-2">&amp;mut </span><span class="macro">vec!</span>[]).unwrap()
+<a href=#671 id=671 data-nosnippet>671</a>        );
+<a href=#672 id=672 data-nosnippet>672</a>        <span class="comment">// Serialize again and check that it matches the original bytes
+<a href=#673 id=673 data-nosnippet>673</a>        </span><span class="macro">assert_eq!</span>(mb_hex, serialize(<span class="kw-2">&amp;</span>mb).to_lower_hex_string().as_str());
+<a href=#674 id=674 data-nosnippet>674</a>    }
+<a href=#675 id=675 data-nosnippet>675</a>
+<a href=#676 id=676 data-nosnippet>676</a>    <span class="doccomment">/// Create a CMerkleBlock using a list of txids which will be found in the
+<a href=#677 id=677 data-nosnippet>677</a>    /// given block.
+<a href=#678 id=678 data-nosnippet>678</a>    </span><span class="attr">#[test]
+<a href=#679 id=679 data-nosnippet>679</a>    </span><span class="kw">fn </span>merkleblock_construct_from_txids_found() {
+<a href=#680 id=680 data-nosnippet>680</a>        <span class="kw">let </span>block = get_block_13b8a();
+<a href=#681 id=681 data-nosnippet>681</a>
+<a href=#682 id=682 data-nosnippet>682</a>        <span class="kw">let </span>txids: Vec&lt;Txid&gt; = [
+<a href=#683 id=683 data-nosnippet>683</a>            <span class="string">"74d681e0e03bafa802c8aa084379aa98d9fcd632ddc2ed9782b586ec87451f20"</span>,
+<a href=#684 id=684 data-nosnippet>684</a>            <span class="string">"f9fc751cb7dc372406a9f8d738d5e6f8f63bab71986a39cf36ee70ee17036d07"</span>,
+<a href=#685 id=685 data-nosnippet>685</a>        ]
+<a href=#686 id=686 data-nosnippet>686</a>        .iter()
+<a href=#687 id=687 data-nosnippet>687</a>        .map(|hex| hex.parse::&lt;Txid&gt;().unwrap())
+<a href=#688 id=688 data-nosnippet>688</a>        .collect();
+<a href=#689 id=689 data-nosnippet>689</a>
+<a href=#690 id=690 data-nosnippet>690</a>        <span class="kw">let </span>txid1 = txids[<span class="number">0</span>];
+<a href=#691 id=691 data-nosnippet>691</a>        <span class="kw">let </span>txid2 = txids[<span class="number">1</span>];
+<a href=#692 id=692 data-nosnippet>692</a>        <span class="kw">let </span>txids = <span class="macro">vec!</span>[txid1, txid2];
+<a href=#693 id=693 data-nosnippet>693</a>
+<a href=#694 id=694 data-nosnippet>694</a>        <span class="kw">let </span>merkle_block = MerkleBlock::from_block_with_predicate(<span class="kw-2">&amp;</span>block, |t| txids.contains(t));
+<a href=#695 id=695 data-nosnippet>695</a>
+<a href=#696 id=696 data-nosnippet>696</a>        <span class="macro">assert_eq!</span>(merkle_block.header.block_hash(), block.block_hash());
+<a href=#697 id=697 data-nosnippet>697</a>
+<a href=#698 id=698 data-nosnippet>698</a>        <span class="kw">let </span><span class="kw-2">mut </span>matches: Vec&lt;Txid&gt; = <span class="macro">vec!</span>[];
+<a href=#699 id=699 data-nosnippet>699</a>        <span class="kw">let </span><span class="kw-2">mut </span>index: Vec&lt;u32&gt; = <span class="macro">vec!</span>[];
+<a href=#700 id=700 data-nosnippet>700</a>
+<a href=#701 id=701 data-nosnippet>701</a>        <span class="macro">assert_eq!</span>(
+<a href=#702 id=702 data-nosnippet>702</a>            merkle_block.txn.extract_matches(<span class="kw-2">&amp;mut </span>matches, <span class="kw-2">&amp;mut </span>index).unwrap(),
+<a href=#703 id=703 data-nosnippet>703</a>            block.header.merkle_root
+<a href=#704 id=704 data-nosnippet>704</a>        );
+<a href=#705 id=705 data-nosnippet>705</a>        <span class="macro">assert_eq!</span>(matches.len(), <span class="number">2</span>);
+<a href=#706 id=706 data-nosnippet>706</a>
+<a href=#707 id=707 data-nosnippet>707</a>        <span class="comment">// Ordered by occurrence in depth-first tree traversal.
+<a href=#708 id=708 data-nosnippet>708</a>        </span><span class="macro">assert_eq!</span>(matches[<span class="number">0</span>], txid2);
+<a href=#709 id=709 data-nosnippet>709</a>        <span class="macro">assert_eq!</span>(index[<span class="number">0</span>], <span class="number">1</span>);
+<a href=#710 id=710 data-nosnippet>710</a>
+<a href=#711 id=711 data-nosnippet>711</a>        <span class="macro">assert_eq!</span>(matches[<span class="number">1</span>], txid1);
+<a href=#712 id=712 data-nosnippet>712</a>        <span class="macro">assert_eq!</span>(index[<span class="number">1</span>], <span class="number">8</span>);
+<a href=#713 id=713 data-nosnippet>713</a>    }
+<a href=#714 id=714 data-nosnippet>714</a>
+<a href=#715 id=715 data-nosnippet>715</a>    <span class="doccomment">/// Create a CMerkleBlock using a list of txids which will not be found in the given block
+<a href=#716 id=716 data-nosnippet>716</a>    </span><span class="attr">#[test]
+<a href=#717 id=717 data-nosnippet>717</a>    </span><span class="kw">fn </span>merkleblock_construct_from_txids_not_found() {
+<a href=#718 id=718 data-nosnippet>718</a>        <span class="kw">let </span>block = get_block_13b8a();
+<a href=#719 id=719 data-nosnippet>719</a>        <span class="kw">let </span>txids: Vec&lt;Txid&gt; = [<span class="string">"c0ffee00003bafa802c8aa084379aa98d9fcd632ddc2ed9782b586ec87451f20"</span>]
+<a href=#720 id=720 data-nosnippet>720</a>            .iter()
+<a href=#721 id=721 data-nosnippet>721</a>            .map(|hex| hex.parse::&lt;Txid&gt;().unwrap())
+<a href=#722 id=722 data-nosnippet>722</a>            .collect();
+<a href=#723 id=723 data-nosnippet>723</a>
+<a href=#724 id=724 data-nosnippet>724</a>        <span class="kw">let </span>merkle_block = MerkleBlock::from_block_with_predicate(<span class="kw-2">&amp;</span>block, |t| txids.contains(t));
+<a href=#725 id=725 data-nosnippet>725</a>
+<a href=#726 id=726 data-nosnippet>726</a>        <span class="macro">assert_eq!</span>(merkle_block.header.block_hash(), block.block_hash());
+<a href=#727 id=727 data-nosnippet>727</a>
+<a href=#728 id=728 data-nosnippet>728</a>        <span class="kw">let </span><span class="kw-2">mut </span>matches: Vec&lt;Txid&gt; = <span class="macro">vec!</span>[];
+<a href=#729 id=729 data-nosnippet>729</a>        <span class="kw">let </span><span class="kw-2">mut </span>index: Vec&lt;u32&gt; = <span class="macro">vec!</span>[];
+<a href=#730 id=730 data-nosnippet>730</a>
+<a href=#731 id=731 data-nosnippet>731</a>        <span class="macro">assert_eq!</span>(
+<a href=#732 id=732 data-nosnippet>732</a>            merkle_block.txn.extract_matches(<span class="kw-2">&amp;mut </span>matches, <span class="kw-2">&amp;mut </span>index).unwrap(),
+<a href=#733 id=733 data-nosnippet>733</a>            block.header.merkle_root
+<a href=#734 id=734 data-nosnippet>734</a>        );
+<a href=#735 id=735 data-nosnippet>735</a>        <span class="macro">assert_eq!</span>(matches.len(), <span class="number">0</span>);
+<a href=#736 id=736 data-nosnippet>736</a>        <span class="macro">assert_eq!</span>(index.len(), <span class="number">0</span>);
+<a href=#737 id=737 data-nosnippet>737</a>    }
+<a href=#738 id=738 data-nosnippet>738</a>
+<a href=#739 id=739 data-nosnippet>739</a>    <span class="attr">#[cfg(feature = <span class="string">"rand-std"</span>)]
+<a href=#740 id=740 data-nosnippet>740</a>    </span><span class="kw">impl </span>PartialMerkleTree {
+<a href=#741 id=741 data-nosnippet>741</a>        <span class="doccomment">/// Flip one bit in one of the hashes - this should break the authentication
+<a href=#742 id=742 data-nosnippet>742</a>        </span><span class="kw">fn </span>damage(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rng: <span class="kw-2">&amp;mut </span>ThreadRng) {
+<a href=#743 id=743 data-nosnippet>743</a>            <span class="kw">let </span>n = rng.gen_range(<span class="number">0</span>..<span class="self">self</span>.hashes.len());
+<a href=#744 id=744 data-nosnippet>744</a>            <span class="kw">let </span>bit = rng.<span class="kw">gen</span>::&lt;u8&gt;();
+<a href=#745 id=745 data-nosnippet>745</a>            <span class="kw">let </span>hashes = <span class="kw-2">&amp;mut </span><span class="self">self</span>.hashes;
+<a href=#746 id=746 data-nosnippet>746</a>            <span class="kw">let </span><span class="kw-2">mut </span>hash = hashes[n].to_byte_array();
+<a href=#747 id=747 data-nosnippet>747</a>            hash[(bit &gt;&gt; <span class="number">3</span>) <span class="kw">as </span>usize] ^= <span class="number">1 </span>&lt;&lt; (bit &amp; <span class="number">7</span>);
+<a href=#748 id=748 data-nosnippet>748</a>            hashes[n] = TxMerkleNode::from_slice(<span class="kw-2">&amp;</span>hash).unwrap();
+<a href=#749 id=749 data-nosnippet>749</a>        }
+<a href=#750 id=750 data-nosnippet>750</a>    }
+<a href=#751 id=751 data-nosnippet>751</a>
+<a href=#752 id=752 data-nosnippet>752</a>    <span class="doccomment">/// Returns a real block (0000000000013b8ab2cd513b0261a14096412195a72a0c4827d229dcc7e0f7af)
+<a href=#753 id=753 data-nosnippet>753</a>    /// with 9 txs.
+<a href=#754 id=754 data-nosnippet>754</a>    </span><span class="kw">fn </span>get_block_13b8a() -&gt; Block {
+<a href=#755 id=755 data-nosnippet>755</a>        <span class="kw">use </span><span class="kw">crate</span>::hashes::hex::FromHex;
+<a href=#756 id=756 data-nosnippet>756</a>        <span class="kw">let </span>block_hex = <span class="macro">include_str!</span>(<span class="string">"../../tests/data/block_13b8a.hex"</span>);
+<a href=#757 id=757 data-nosnippet>757</a>        deserialize(<span class="kw-2">&amp;</span>Vec::from_hex(block_hex).unwrap()).unwrap()
+<a href=#758 id=758 data-nosnippet>758</a>    }
+<a href=#759 id=759 data-nosnippet>759</a>}
+</code></pre></div></section></main></body></html>

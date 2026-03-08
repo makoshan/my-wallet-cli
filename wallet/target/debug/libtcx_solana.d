@@ -1,0 +1,1 @@
+/home/ubuntu/my-wallet-cli/wallet/target/debug/libtcx_solana.rlib: /home/ubuntu/my-wallet-cli/wallet/tcx-solana/src/address.rs /home/ubuntu/my-wallet-cli/wallet/tcx-solana/src/keystore.rs /home/ubuntu/my-wallet-cli/wallet/tcx-solana/src/lib.rs /home/ubuntu/my-wallet-cli/wallet/tcx-solana/src/transaction.rs

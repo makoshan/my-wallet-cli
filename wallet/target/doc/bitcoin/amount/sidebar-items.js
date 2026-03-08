@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Denomination","ParseAmountError"],"struct":["Amount","Display","SignedAmount"],"trait":["CheckedSum"]};

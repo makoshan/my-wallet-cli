@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["BitcoinMessageInput","BitcoinMessageOutput","BitcoinTxInput","BitcoinTxOutput"]};

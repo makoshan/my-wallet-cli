@@ -1,0 +1,1 @@
+/home/ubuntu/my-wallet-cli/wallet/target/debug/libtcx_bitcoin_bdk.rlib: /home/ubuntu/my-wallet-cli/wallet/tcx-bitcoin-bdk/src/address.rs /home/ubuntu/my-wallet-cli/wallet/tcx-bitcoin-bdk/src/keystore.rs /home/ubuntu/my-wallet-cli/wallet/tcx-bitcoin-bdk/src/lib.rs /home/ubuntu/my-wallet-cli/wallet/tcx-bitcoin-bdk/src/transaction.rs
