@@ -1,0 +1,43 @@
+[package]
+name = "tcx-evm"
+version = "0.1.0"
+authors = ["Manus AI"]
+edition = "2021"
+
+[dependencies]
+tcx-keystore = { path = "../tcx-keystore" }
+tcx-common = { path = "../tcx-common" }
+tcx-proto = { path = "../tcx-proto" }
+tcx-constants = { path = "../tcx-constants" }
+
+# Alloy dependencies for EVM support
+alloy-primitives = "0.7"
+alloy-signer = "0.2"
+alloy-signer-local = "0.2"
+
+# Alternative: use web3 for simpler EVM support
+web3 = "0.18"
+
+# Cryptography
+secp256k1 = "0.28"
+sha3 = "0.10"
+hex = "0.4"
+keccak = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.21"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+
+# Memory safety
+zeroize = { version = "1.6", features = ["derive"] }
+
+[dev-dependencies]
+serial_test = "2.0"

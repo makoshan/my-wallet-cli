@@ -1,0 +1,57 @@
+[package]
+name = "wallet-cli"
+version = "0.1.0"
+authors = ["Manus AI"]
+edition = "2021"
+
+[[bin]]
+name = "wallet"
+path = "src/main.rs"
+
+[dependencies]
+# Core wallet libraries
+tcx = { path = "../tcx" }
+tcx-keystore = { path = "../tcx-keystore" }
+tcx-crypto = { path = "../tcx-crypto" }
+tcx-common = { path = "../tcx-common" }
+tcx-evm = { path = "../tcx-evm" }
+tcx-bitcoin-bdk = { path = "../tcx-bitcoin-bdk" }
+tcx-solana = { path = "../tcx-solana" }
+tcx-ssh = { path = "../tcx-ssh" }
+
+# CLI
+clap = { version = "4.4", features = ["derive"] }
+clap_complete = "4.4"
+
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"
+
+# Utilities
+hex = "0.4"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+dirs = "5.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP client (for RPC calls)
+reqwest = { version = "0.11", features = ["json"] }
+
+# SSH key generation
+md5 = "0.7"
+rpassword = "7.3"
+
+[dev-dependencies]
+tempfile = "3.8"
+serial_test = "2.0"
