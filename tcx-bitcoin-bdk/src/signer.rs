@@ -1,8 +1,8 @@
-use crate::transaction::{BitcoinMessageInput, BitcoinMessageOutput, BitcoinTxInput, BitcoinTxOutput};
-use crate::Result;
-use bitcoin::hashes::{sha256, Hash};
-use hex::ToHex;
-use tcx_keystore::{Keystore, MessageSigner, SignatureParameters, TransactionSigner};
+use crate::transaction::{
+    BitcoinMessageInput, BitcoinMessageOutput, BitcoinTxInput, BitcoinTxOutput,
+};
+use bitcoin_hashes::{sha256d, Hash};
+use tcx_keystore::{Keystore, MessageSigner, SignatureParameters, Signer, TransactionSigner};
 
 impl TransactionSigner<BitcoinTxInput, BitcoinTxOutput> for Keystore {
     fn sign_transaction(
@@ -10,16 +10,16 @@ impl TransactionSigner<BitcoinTxInput, BitcoinTxOutput> for Keystore {
         params: &SignatureParameters,
         input: &BitcoinTxInput,
     ) -> tcx_keystore::Result<BitcoinTxOutput> {
-        // Decode PSBT from base64
         let psbt_bytes = base64::decode(&input.psbt)
             .map_err(|e| anyhow::anyhow!("Failed to decode PSBT: {}", e))?;
 
-        // Sign the PSBT
-        let signature = self.secp256k1_ecdsa_sign_recoverable(&psbt_bytes, &params.derivation_path)?;
+        let hash = sha256d::Hash::hash(&psbt_bytes);
+        let sig = self
+            .secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;
 
         Ok(BitcoinTxOutput {
-            signed_psbt: base64::encode(&signature),
-            tx_hash: sha256::Hash::hash(&psbt_bytes).to_string(),
+            signed_psbt: base64::encode(&sig),
+            tx_hash: hash.to_string(),
         })
     }
 }
@@ -30,23 +30,28 @@ impl MessageSigner<BitcoinMessageInput, BitcoinMessageOutput> for Keystore {
         params: &SignatureParameters,
         input: &BitcoinMessageInput,
     ) -> tcx_keystore::Result<BitcoinMessageOutput> {
-        // Bitcoin message signing format
-        const PREFIX: &str = "\x18Bitcoin Signed Message:\n";
-        let message = input.message.as_bytes();
-        let len = message.len();
-        let len_string = len.to_string();
+        const PREFIX: &[u8] = b"\x18Bitcoin Signed Message:\n";
+        let msg = input.message.as_bytes();
+        let mut data = Vec::with_capacity(PREFIX.len() + 10 + msg.len());
+        data.extend_from_slice(PREFIX);
+        // varint for message length
+        let len = msg.len();
+        if len < 0xfd {
+            data.push(len as u8);
+        } else {
+            data.push(0xfd);
+            data.push((len & 0xff) as u8);
+            data.push((len >> 8) as u8);
+        }
+        data.extend_from_slice(msg);
 
-        let mut bitcoin_message = Vec::with_capacity(PREFIX.len() + len_string.len() + len);
-        bitcoin_message.extend_from_slice(PREFIX.as_bytes());
-        bitcoin_message.extend_from_slice(len_string.as_bytes());
-        bitcoin_message.extend_from_slice(message);
-
-        let message_hash = sha256::Hash::hash(&bitcoin_message);
-        let signature = self.secp256k1_ecdsa_sign_recoverable(message_hash.as_ref(), &params.derivation_path)?;
+        let hash = sha256d::Hash::hash(&data);
+        let sig = self
+            .secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;
 
         Ok(BitcoinMessageOutput {
-            signature: signature.to_hex(),
-            message_hash: message_hash.to_string(),
+            signature: hex::encode(&sig),
+            message_hash: hash.to_string(),
         })
     }
 }

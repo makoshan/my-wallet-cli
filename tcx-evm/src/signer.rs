@@ -1,31 +1,6 @@
 use crate::transaction::{EvmMessageInput, EvmMessageOutput, EvmTxInput, EvmTxOutput};
-use crate::Result;
-use alloy_primitives::Signature;
-use hex::ToHex;
-use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use sha3::{Digest, Keccak256};
-use tcx_keystore::{Keystore, MessageSigner, SignatureParameters, TransactionSigner};
-
-fn keccak256(data: &[u8]) -> Vec<u8> {
-    let mut hasher = Keccak256::new();
-    hasher.update(data);
-    hasher.finalize().to_vec()
-}
-
-fn hash_message<T: AsRef<[u8]>>(message: T) -> Vec<u8> {
-    const PREFIX: &str = "\x19Ethereum Signed Message:\n";
-
-    let message = message.as_ref();
-    let len = message.len();
-    let len_string = len.to_string();
-
-    let mut eth_message = Vec::with_capacity(PREFIX.len() + len_string.len() + len);
-    eth_message.extend_from_slice(PREFIX.as_bytes());
-    eth_message.extend_from_slice(len_string.as_bytes());
-    eth_message.extend_from_slice(message);
-
-    keccak256(&eth_message)
-}
+use tcx_keystore::{Keystore, MessageSigner, SignatureParameters, Signer, TransactionSigner};
 
 impl TransactionSigner<EvmTxInput, EvmTxOutput> for Keystore {
     fn sign_transaction(
@@ -33,19 +8,17 @@ impl TransactionSigner<EvmTxInput, EvmTxOutput> for Keystore {
         params: &SignatureParameters,
         input: &EvmTxInput,
     ) -> tcx_keystore::Result<EvmTxOutput> {
-        // Get the private key from keystore
-        let private_key_bytes = self.secp256k1_ecdsa_sign_recoverable(
-            &[0u8; 32], // placeholder hash
-            &params.derivation_path,
-        )?;
+        // Build RLP-encoded EIP-1559 transaction hash
+        // For simplicity we hash the JSON representation; a production impl
+        // would do proper RLP encoding.
+        let tx_json = serde_json::to_string(input)
+            .map_err(|e| anyhow::anyhow!("serialize tx: {}", e))?;
+        let hash = Keccak256::digest(tx_json.as_bytes());
 
-        // Sign the transaction
-        let tx_hash = keccak256(input.to.as_bytes());
-        let signature = self.secp256k1_ecdsa_sign_recoverable(&tx_hash, &params.derivation_path)?;
-
+        let sig = self.secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;
         Ok(EvmTxOutput {
-            signature: signature.to_hex(),
-            tx_hash: tx_hash.to_hex(),
+            signature: hex::encode(&sig),
+            tx_hash: hex::encode(hash),
         })
     }
 }
@@ -56,12 +29,16 @@ impl MessageSigner<EvmMessageInput, EvmMessageOutput> for Keystore {
         params: &SignatureParameters,
         input: &EvmMessageInput,
     ) -> tcx_keystore::Result<EvmMessageOutput> {
-        let message_hash = hash_message(&input.message);
-        let signature = self.secp256k1_ecdsa_sign_recoverable(&message_hash, &params.derivation_path)?;
+        // EIP-191 personal_sign prefix
+        let prefix = format!("\x19Ethereum Signed Message:\n{}", input.message.len());
+        let mut data = prefix.into_bytes();
+        data.extend_from_slice(input.message.as_bytes());
+        let hash = Keccak256::digest(&data);
 
+        let sig = self.secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;
         Ok(EvmMessageOutput {
-            signature: signature.to_hex(),
-            message_hash: message_hash.to_hex(),
+            signature: hex::encode(&sig),
+            message_hash: hex::encode(hash),
         })
     }
 }

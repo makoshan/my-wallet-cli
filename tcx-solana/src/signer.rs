@@ -1,8 +1,8 @@
-use crate::transaction::{SolanaMessageInput, SolanaMessageOutput, SolanaTxInput, SolanaTxOutput};
-use crate::Result;
-use hex::ToHex;
+use crate::transaction::{
+    SolanaMessageInput, SolanaMessageOutput, SolanaTxInput, SolanaTxOutput,
+};
 use sha2::{Digest, Sha256};
-use tcx_keystore::{Keystore, MessageSigner, SignatureParameters, TransactionSigner};
+use tcx_keystore::{Keystore, MessageSigner, SignatureParameters, Signer, TransactionSigner};
 
 impl TransactionSigner<SolanaTxInput, SolanaTxOutput> for Keystore {
     fn sign_transaction(
@@ -10,20 +10,16 @@ impl TransactionSigner<SolanaTxInput, SolanaTxOutput> for Keystore {
         params: &SignatureParameters,
         input: &SolanaTxInput,
     ) -> tcx_keystore::Result<SolanaTxOutput> {
-        // Decode transaction from base64
         let tx_bytes = base64::decode(&input.transaction)
             .map_err(|e| anyhow::anyhow!("Failed to decode transaction: {}", e))?;
 
-        // Sign the transaction
-        let signature = self.secp256k1_ecdsa_sign_recoverable(&tx_bytes, &params.derivation_path)?;
+        // Solana uses Ed25519 for signing
+        let sig = self.ed25519_sign(&tx_bytes, &params.derivation_path)?;
 
-        let mut hasher = Sha256::new();
-        hasher.update(&tx_bytes);
-        let tx_hash = hasher.finalize();
-
+        let hash = Sha256::digest(&tx_bytes);
         Ok(SolanaTxOutput {
-            signature: signature.to_hex(),
-            tx_hash: tx_hash.to_hex(),
+            signature: base64::encode(&sig),
+            tx_hash: hex::encode(hash),
         })
     }
 }
@@ -34,26 +30,13 @@ impl MessageSigner<SolanaMessageInput, SolanaMessageOutput> for Keystore {
         params: &SignatureParameters,
         input: &SolanaMessageInput,
     ) -> tcx_keystore::Result<SolanaMessageOutput> {
-        // Solana message signing format
-        const PREFIX: &str = "Solana Signed Message:\n";
-        let message = input.message.as_bytes();
-        let len = message.len();
-        let len_string = len.to_string();
+        let msg_bytes = input.message.as_bytes();
+        let sig = self.ed25519_sign(msg_bytes, &params.derivation_path)?;
 
-        let mut solana_message = Vec::with_capacity(PREFIX.len() + len_string.len() + len);
-        solana_message.extend_from_slice(PREFIX.as_bytes());
-        solana_message.extend_from_slice(len_string.as_bytes());
-        solana_message.extend_from_slice(message);
-
-        let mut hasher = Sha256::new();
-        hasher.update(&solana_message);
-        let message_hash = hasher.finalize();
-
-        let signature = self.secp256k1_ecdsa_sign_recoverable(message_hash.as_ref(), &params.derivation_path)?;
-
+        let hash = Sha256::digest(msg_bytes);
         Ok(SolanaMessageOutput {
-            signature: signature.to_hex(),
-            message_hash: message_hash.to_hex(),
+            signature: base64::encode(&sig),
+            message_hash: hex::encode(hash),
         })
     }
 }

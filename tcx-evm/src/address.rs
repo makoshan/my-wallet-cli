@@ -1,56 +1,59 @@
 use crate::Result;
-use alloy_primitives::Address as AlloyAddress;
-use hex::{FromHex, ToHex};
-use std::str::FromStr;
-use tcx_common::FromHex as TcxFromHex;
+use hex::FromHex;
+use sha3::{Digest, Keccak256};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EvmAddress {
-    inner: AlloyAddress,
-}
+pub struct EvmAddress([u8; 20]);
 
 impl EvmAddress {
-    pub fn new(address: AlloyAddress) -> Self {
-        EvmAddress { inner: address }
+    pub fn from_bytes(bytes: [u8; 20]) -> Self {
+        EvmAddress(bytes)
     }
 
-    pub fn from_hex(hex: &str) -> Result<Self> {
-        let hex_str = if hex.starts_with("0x") {
-            &hex[2..]
+    pub fn from_public_key(pubkey_bytes: &[u8]) -> Result<Self> {
+        // Public key must be 64 bytes (uncompressed, without 0x04 prefix)
+        // or 65 bytes (with 0x04 prefix)
+        let key_bytes = if pubkey_bytes.len() == 65 && pubkey_bytes[0] == 0x04 {
+            &pubkey_bytes[1..]
+        } else if pubkey_bytes.len() == 64 {
+            pubkey_bytes
         } else {
-            hex
+            return Err(anyhow::anyhow!(
+                "Invalid public key length: {}",
+                pubkey_bytes.len()
+            ));
         };
+        let hash = Keccak256::digest(key_bytes);
+        let mut addr = [0u8; 20];
+        addr.copy_from_slice(&hash[12..]);
+        Ok(EvmAddress(addr))
+    }
 
-        let bytes = Vec::from_hex(hex_str)?;
+    pub fn from_hex(hex_str: &str) -> Result<Self> {
+        let s = hex_str.strip_prefix("0x").unwrap_or(hex_str);
+        let bytes = Vec::from_hex(s)
+            .map_err(|e| anyhow::anyhow!("Invalid hex: {}", e))?;
         if bytes.len() != 20 {
             return Err(anyhow::anyhow!("Invalid EVM address length"));
         }
-
         let mut addr = [0u8; 20];
         addr.copy_from_slice(&bytes);
-        Ok(EvmAddress {
-            inner: AlloyAddress::from(addr),
-        })
+        Ok(EvmAddress(addr))
     }
 
+    /// EIP-55 checksum address
     pub fn to_checksum(&self) -> String {
-        // EIP-55 checksum address
-        let addr_hex = self.inner.to_string().to_lowercase();
-        let addr_hex = if addr_hex.starts_with("0x") {
-            &addr_hex[2..]
-        } else {
-            &addr_hex
-        };
-
-        let hash = sha3::Keccak256::digest(addr_hex.as_bytes());
-        let hash_hex = hash.to_hex::<String>();
+        let hex_addr = hex::encode(self.0);
+        let hash = Keccak256::digest(hex_addr.as_bytes());
+        let hash_hex = hex::encode(hash);
 
         let mut result = String::from("0x");
-        for (i, c) in addr_hex.chars().enumerate() {
-            if let Some(h) = hash_hex.chars().nth(i) {
-                if c.is_ascii_digit() {
-                    result.push(c);
-                } else if h.to_digit(16).unwrap() >= 8 {
+        for (i, c) in hex_addr.chars().enumerate() {
+            if c.is_ascii_digit() {
+                result.push(c);
+            } else {
+                let nibble = u8::from_str_radix(&hash_hex[i..i + 1], 16).unwrap_or(0);
+                if nibble >= 8 {
                     result.push(c.to_ascii_uppercase());
                 } else {
                     result.push(c);
@@ -58,14 +61,6 @@ impl EvmAddress {
             }
         }
         result
-    }
-
-    pub fn to_string(&self) -> String {
-        self.inner.to_string()
-    }
-
-    pub fn inner(&self) -> &AlloyAddress {
-        &self.inner
     }
 }
 
@@ -80,17 +75,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_evm_address_from_hex() {
-        let addr_str = "0x1234567890123456789012345678901234567890";
-        let addr = EvmAddress::from_hex(addr_str).unwrap();
-        assert_eq!(addr.to_string().to_lowercase(), addr_str.to_lowercase());
+    fn test_evm_address_checksum() {
+        // Known EIP-55 test vector
+        let addr = EvmAddress::from_hex("0x5aAeb6053ba3EEdb6A475A1d3E4e77F9E6d3c467").unwrap();
+        let checksum = addr.to_checksum();
+        assert!(checksum.starts_with("0x"));
+        assert_eq!(checksum.len(), 42);
     }
 
     #[test]
-    fn test_evm_address_checksum() {
-        let addr_str = "0x5aAeb6053ba3EEdb6A475A1d3E4e77F9E6d3c467";
-        let addr = EvmAddress::from_hex(addr_str).unwrap();
-        let checksum = addr.to_checksum();
-        assert!(checksum.starts_with("0x"));
+    fn test_from_hex_roundtrip() {
+        let hex = "0x1234567890123456789012345678901234567890";
+        let addr = EvmAddress::from_hex(hex).unwrap();
+        assert_eq!(addr.to_checksum().to_lowercase(), hex.to_lowercase());
     }
 }

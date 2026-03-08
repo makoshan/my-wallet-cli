@@ -1,40 +1,39 @@
 use crate::Result;
-use solana_sdk::pubkey::Pubkey;
-use std::str::FromStr;
+use bs58;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SolanaAddress {
-    inner: Pubkey,
-}
+pub struct SolanaAddress(pub [u8; 32]);
 
 impl SolanaAddress {
-    pub fn new(pubkey: Pubkey) -> Self {
-        SolanaAddress { inner: pubkey }
+    pub fn from_ed25519_pubkey(pubkey: &[u8]) -> Result<Self> {
+        if pubkey.len() != 32 {
+            return Err(anyhow::anyhow!("Solana public key must be 32 bytes"));
+        }
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(pubkey);
+        Ok(SolanaAddress(arr))
     }
 
-    pub fn from_string(address_str: &str) -> Result<Self> {
-        let pubkey = Pubkey::from_str(address_str)
-            .map_err(|e| anyhow::anyhow!("Invalid Solana address: {}", e))?;
-
-        Ok(SolanaAddress { inner: pubkey })
+    pub fn from_base58(s: &str) -> Result<Self> {
+        let bytes = bs58::decode(s)
+            .into_vec()
+            .map_err(|e| anyhow::anyhow!("Invalid base58: {}", e))?;
+        if bytes.len() != 32 {
+            return Err(anyhow::anyhow!("Invalid Solana address length"));
+        }
+        let mut arr = [0u8; 32];
+        arr.copy_from_slice(&bytes);
+        Ok(SolanaAddress(arr))
     }
 
-    pub fn to_string(&self) -> String {
-        self.inner.to_string()
-    }
-
-    pub fn inner(&self) -> &Pubkey {
-        &self.inner
-    }
-
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.inner.to_bytes().to_vec()
+    pub fn to_base58(&self) -> String {
+        bs58::encode(&self.0).into_string()
     }
 }
 
 impl std::fmt::Display for SolanaAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{}", self.to_base58())
     }
 }
 
@@ -43,9 +42,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_solana_address_from_string() {
-        let addr_str = "11111111111111111111111111111111";
-        let addr = SolanaAddress::from_string(addr_str).unwrap();
-        assert_eq!(addr.to_string(), addr_str);
+    fn test_solana_address_roundtrip() {
+        let bytes = [1u8; 32];
+        let addr = SolanaAddress(bytes);
+        let s = addr.to_base58();
+        let addr2 = SolanaAddress::from_base58(&s).unwrap();
+        assert_eq!(addr, addr2);
     }
 }

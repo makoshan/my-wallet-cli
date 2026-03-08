@@ -1,42 +1,19 @@
 [package]
 name = "tcx-solana"
 version = "0.1.0"
-authors = ["Manus AI"]
 edition = "2021"
 
 [dependencies]
-tcx-keystore = { path = "../tcx-keystore" }
-tcx-common = { path = "../tcx-common" }
-tcx-proto = { path = "../tcx-proto" }
+tcx-keystore  = { path = "../tcx-keystore" }
 tcx-constants = { path = "../tcx-constants" }
-
-# Solana SDK
-solana-sdk = "1.18"
-solana-client = "1.18"
-
-# Base64 encoding
-base64 = "0.21"
-
-# Cryptography
-ed25519-dalek = "2.1"
-sha2 = "0.10"
-hex = "0.4"
-md5 = "0.7"
-
-# Serialization
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-bincode = "1.3"
-
-# Error handling
-anyhow = "1.0"
-thiserror = "1.0"
-
-# Logging
-log = "0.4"
-
-# Memory safety
-zeroize = { version = "1.6", features = ["derive"] }
-
-[dev-dependencies]
-serial_test = "2.0"
+tcx-common    = { path = "../tcx-common" }
+ed25519-dalek = { version = "=1.0.1", features = ["u64_backend"] }
+sha2          = "=0.10.6"
+hex           = "=0.4.3"
+base64        = "=0.13.1"
+bs58          = "0.4"
+serde         = { version = "=1.0.147", features = ["derive"] }
+serde_json    = "=1.0.89"
+anyhow        = "=1.0.79"
+thiserror     = "=1.0.56"
+zeroize       = { version = "1.6", features = ["derive"] }

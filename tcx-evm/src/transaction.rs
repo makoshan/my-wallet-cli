@@ -3,11 +3,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvmTxInput {
     pub to: String,
-    pub value: String,
-    pub data: Option<String>,
-    pub gas_limit: Option<u64>,
-    pub gas_price: Option<String>,
-    pub nonce: Option<u64>,
+    pub value: String,      // hex-encoded wei
+    pub data: String,       // hex-encoded calldata
+    pub nonce: u64,
+    pub gas_limit: u64,
+    pub max_fee_per_gas: String,
+    pub max_priority_fee_per_gas: String,
     pub chain_id: u64,
 }
 

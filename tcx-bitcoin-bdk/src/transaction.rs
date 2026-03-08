@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BitcoinTxInput {
-    pub psbt: String, // Base64 encoded PSBT
+    /// Base64-encoded PSBT
+    pub psbt: String,
     pub network: String,
 }
 

@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolanaTxInput {
-    pub transaction: String, // Base64 encoded transaction
-    pub network: String,
+    /// Base64-encoded serialized Solana transaction
+    pub transaction: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

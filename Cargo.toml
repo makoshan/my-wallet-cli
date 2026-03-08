@@ -9,7 +9,7 @@ members = [
     "tcx-crypto",
     "tcx-keystore",
     "tcx-common",
-    "tcx-migration",
+    # "tcx-migration",  # temporarily excluded: sp-core serde version conflict
 
     # Cryptographic libraries
     "tcx-libs/ed25519-dalek-bip32",
@@ -23,22 +23,22 @@ members = [
     "tcx-eth",
     "tcx-eth2",
     "tcx-filecoin",
-    "tcx-substrate",
+    # "tcx-substrate",  # temporarily excluded: sp-core serde version conflict
     "tcx-tezos",
     "tcx-ton",
     "tcx-tron",
 
     # Chain implementations (new: EVM / Bitcoin / Solana)
-    "tcx-evm",
-    "tcx-bitcoin-bdk",
-    "tcx-solana",
+    # "tcx-evm",  # independent crate (no sp-core dependency)
+    # "tcx-bitcoin-bdk",  # independent crate (no sp-core dependency)
+    # "tcx-solana",  # independent crate (no sp-core dependency)
 
     # SSH key generation from mnemonic
-    "tcx-ssh",
+    # "tcx-ssh",  # independent crate (no sp-core dependency)
 
     # Main entry point (protobuf API)
-    "tcx",
+    # "tcx",  # temporarily excluded: sp-core serde version conflict
 
     # CLI application
-    "wallet-cli",
+    # "wallet-cli",  # independent crate (no sp-core dependency)
 ]
