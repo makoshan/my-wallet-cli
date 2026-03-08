@@ -1,42 +1,44 @@
 [workspace]
 resolver = "2"
+
 members = [
-    "token-core/tcx-proto",
-    "token-core/tcx-constants",
-    "token-core/tcx-primitive",
-    "token-core/tcx-crypto",
-    "token-core/tcx-keystore",
-    "token-core/tcx-tron",
-    "token-core/tcx-btc-kin",
-    "token-core/tcx-ckb",
-    "token-core/tcx-atom",
-    "token-core/tcx-eos",
-    "token-core/tcx-substrate",
-    "token-core/tcx-filecoin",
-    "token-core/tcx",
-    "token-core/tcx-tezos",
-    "token-core/tcx-tester",
-    "token-core/tcx-eth2",
-    "token-core/tcx-eth",
-    "token-core/tcx-ton",
-    "token-core/tcx-common",
-    "token-core/tcx-migration",
-    "token-core/tcx-libs/ed25519-dalek-bip32",
-    "token-core/tcx-libs/tonlib-core",
-    "imkey-core/ikc",
-    "imkey-core/ikc-common",
-    "imkey-core/ikc-device",
-    "imkey-core/ikc-proto",
-    "imkey-core/ikc-transport",
-    "imkey-core/ikc-wallet/coin-bitcoin",
-    "imkey-core/ikc-wallet/coin-ethereum",
-    "imkey-core/ikc-wallet/coin-eos",
-    "imkey-core/ikc-wallet/coin-cosmos",
-    "imkey-core/ikc-wallet/coin-ckb",
-    "imkey-core/ikc-wallet/coin-substrate",
-    "imkey-core/ikc-wallet/coin-tron",
-    "imkey-core/ikc-wallet/coin-tezos",
-    "imkey-core/ikc-wallet/coin-bch",
-    "imkey-core/ikc-wallet/coin-filecoin",
-    "imkey-core/ikc-wallet/coin-btc-fork",
+    # Core infrastructure
+    "tcx-proto",
+    "tcx-constants",
+    "tcx-primitive",
+    "tcx-crypto",
+    "tcx-keystore",
+    "tcx-common",
+    "tcx-migration",
+
+    # Cryptographic libraries
+    "tcx-libs/ed25519-dalek-bip32",
+    "tcx-libs/tonlib-core",
+
+    # Chain implementations (original token-core)
+    "tcx-atom",
+    "tcx-btc-kin",
+    "tcx-ckb",
+    "tcx-eos",
+    "tcx-eth",
+    "tcx-eth2",
+    "tcx-filecoin",
+    "tcx-substrate",
+    "tcx-tezos",
+    "tcx-ton",
+    "tcx-tron",
+
+    # Chain implementations (new: EVM / Bitcoin / Solana)
+    "tcx-evm",
+    "tcx-bitcoin-bdk",
+    "tcx-solana",
+
+    # SSH key generation from mnemonic
+    "tcx-ssh",
+
+    # Main entry point (protobuf API)
+    "tcx",
+
+    # CLI application
+    "wallet-cli",
 ]
