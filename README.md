@@ -1,135 +1,231 @@
 # My Wallet CLI
 
-[![Rust CI](https://github.com/makoshan/my-wallet-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/makoshan/my-wallet-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/wallet-cli.svg)](https://crates.io/crates/wallet-cli)
 
-A powerful, secure, and extensible multi-chain wallet command-line interface, built in Rust.
+`my-wallet-cli` is a Rust workspace centered around a multi-chain wallet CLI and a set of reusable chain/keystore crates.
 
-This project is a refactored and enhanced version based on the original `token-core-monorepo`. It removes all hardware wallet (imKey) dependencies, flattens the project structure for simplicity, and adds modern chain support using best-in-class Rust libraries.
+This project is a refactored fork of imToken's [token-core-monorepo](https://github.com/consenlabs/token-core-monorepo). It flattens the repository structure, keeps the software-wallet keystore flow, and adds a simpler CLI-oriented workspace layout.
 
-## ✨ Features
+## Overview
 
-- **Multi-Chain Support**: Manages wallets for numerous blockchains.
-- **Modern Libraries**: 
-    - **EVM Chains**: Powered by [Alloy](https://github.com/alloy-rs/alloy).
-    - **Bitcoin**: Powered by [BDK](https://bitcoindevkit.org/).
-    - **Solana**: Powered by the official [Solana SDK](https://github.com/solana-labs/solana/tree/master/sdk).
-- **Secure Keystore**: Encrypted, password-protected keystore using AES-256-GCM and Argon2id.
-- **SSH Key Generation**: Generate Ed25519 SSH keys from your mnemonic phrase.
-- **Extensible Architecture**: Clean, modular design makes it easy to add support for new chains.
-- **Comprehensive CLI**: A user-friendly command-line interface for all wallet operations.
+Today, the repository is strongest in these areas:
 
-## 🚀 Quick Start
+- Wallet creation and mnemonic import.
+- Encrypted keystore storage backed by `tcx-keystore`.
+- Real address derivation for EVM, Bitcoin, and Solana accounts.
+- SSH Ed25519 key generation from a mnemonic phrase.
+- A Cargo workspace layout that makes the individual crates easier to build and test.
 
-For a detailed guide, see [**QUICKSTART.md**](./QUICKSTART.md).
+Some CLI commands are still placeholders and should be treated as scaffolding rather than production wallet operations.
 
-### 1. Installation
+## Current CLI Status
 
-Ensure you have Rust `1.70+` installed.
+Implemented commands:
+
+- `wallet create`: creates a new wallet or imports an existing mnemonic, then prints the wallet id, recovery phrase, and default Ethereum, Solana, and Bitcoin addresses.
+- `wallet list`: lists stored wallets from local metadata.
+- `wallet address`: derives a real address from the encrypted keystore after unlocking with the wallet password.
+- `wallet delete`: deletes a wallet and its keystore file.
+- `wallet ssh-keygen`: writes an Ed25519 SSH keypair derived from a mnemonic.
+
+Placeholder commands:
+
+- `wallet balance`: currently returns mock balance data.
+- `wallet sign-message`: currently returns a mock signature.
+- `wallet send`: currently returns a mock transaction hash.
+- `wallet export`: currently returns a mock exported filename.
+
+## Supported Address Derivation
+
+The current `wallet address` implementation supports:
+
+- EVM-style chains: `ethereum`, `sepolia`, `ethereum_sepolia`, `polygon`, `arbitrum`, `optimism`, `base`, `avalanche`, `bsc`
+- Solana-style chains: `solana`, `solana_devnet`, `solana_testnet`
+- Bitcoin-style chains: `bitcoin`, `bitcoin_testnet`
+
+Default derivation behavior in the current code:
+
+- Ethereum-family chains use `m/44'/60'/0'/0/{index}`
+- Solana uses `m/44'/501'/{index}'/0'`
+- Bitcoin mainnet uses `m/84'/0'/0'/0/{index}`
+- Bitcoin testnet uses `m/84'/1'/0'/0/{index}`
+
+## Quick Start
+
+For a longer walkthrough, see [QUICKSTART.md](./QUICKSTART.md).
+
+### 1. Install
+
+Make sure Rust `1.70+` is installed.
 
 ```bash
-# Clone the repository
 git clone https://github.com/makoshan/my-wallet-cli.git
 cd my-wallet-cli
-
-# Install the CLI binary
 cargo install --path wallet-cli
 ```
 
-### 2. Create a Wallet
+### 2. Create a wallet
 
 ```bash
-# Create a new wallet named 'my_first_wallet'
-wallet create --name my_first_wallet
-
-# You will be prompted to set a password.
-# Your mnemonic phrase will be displayed. SAVE IT SECURELY!
+wallet create --name my-wallet
 ```
 
-### 3. Get an Address
+Behavior in the current implementation:
+
+- If `--name` is omitted in an interactive terminal, the CLI prompts for a name and offers a generated default like `wallet-1a2b3c4d`.
+- If `--password` is omitted, the CLI prompts for one.
+- The command prints the wallet id, recovery phrase, and default Ethereum, Solana, and Bitcoin addresses.
+
+To import an existing mnemonic:
 
 ```bash
-# Get your Ethereum address
-wallet address --chain ethereum --wallet my_first_wallet
-
-# Get your Bitcoin address
-wallet address --chain bitcoin --wallet my_first_wallet
-
-# Get your Solana address
-wallet address --chain solana --wallet my_first_wallet
+wallet create \
+  --name imported-wallet \
+  --password test-password \
+  --mnemonic "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 ```
 
-### 4. Generate SSH Key
+### 3. List wallets
 
 ```bash
-# Generate an SSH key from your wallet's mnemonic
-wallet ssh-keygen --wallet my_first_wallet --output ~/.ssh/id_wallet
-
-# The public key will be saved to ~/.ssh/id_wallet.pub
+wallet list
 ```
 
-## 🏗️ Project Structure
+### 4. Derive addresses
 
-This repository is a Cargo workspace with a flattened structure. All crates (`tcx-*`, `wallet-cli`, etc.) are located in the root directory.
-
-| Crate | Description |
-| :--- | :--- |
-| `wallet-cli` | The main CLI application binary. |
-| `tcx` | The core library facade, exporting a unified API (originally for protobuf). |
-| `tcx-keystore` | Manages encrypted wallet storage. |
-| `tcx-crypto` | Core cryptographic primitives. |
-| `tcx-primitive` | Shared data structures like `Bip39`, `PrivateKey`, etc. |
-| `tcx-evm` | **New**: EVM chain support using Alloy. |
-| `tcx-bitcoin-bdk` | **New**: Bitcoin support using BDK. |
-| `tcx-solana` | **New**: Solana support using the Solana SDK. |
-| `tcx-ssh` | **New**: SSH key generation from mnemonics. |
-| `tcx-*` | Support for various other chains inherited from token-core. |
-
-For a deep dive into the architecture, see [**ARCHITECTURE.md**](./ARCHITECTURE.md).
-
-## 🔧 Development
-
-### Build
+The address command unlocks the keystore with the wallet password and derives the requested address.
 
 ```bash
-# Build the entire workspace in debug mode
+wallet address --wallet my-wallet --chain ethereum
+wallet address --wallet my-wallet --chain bitcoin --index 0
+wallet address --wallet my-wallet --chain solana --index 0
+```
+
+If `--password` is omitted, the CLI prompts for it.
+
+You can also script it:
+
+```bash
+wallet address \
+  --wallet my-wallet \
+  --password test-password \
+  --chain sepolia \
+  --index 1 \
+  --json
+```
+
+### 5. Generate an SSH key from a mnemonic
+
+Recommended usage:
+
+```bash
+wallet ssh-keygen \
+  --mnemonic "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about" \
+  --output ~/.ssh/id_wallet \
+  --comment my-wallet
+```
+
+This writes:
+
+- private key: `~/.ssh/id_wallet`
+- public key: `~/.ssh/id_wallet.pub`
+
+Important: in the current code, `wallet ssh-keygen --wallet ...` does not read the stored mnemonic back out of the keystore. If `--mnemonic` is omitted, it generates a fresh 24-word phrase and derives the SSH key from that.
+
+## Data and Configuration
+
+Default paths:
+
+- config file: `~/.wallet/config.toml`
+- keystore directory: `~/.wallet/keystore`
+- wallet metadata index: `~/.wallet/keystore/metadata.json`
+
+Global CLI options:
+
+- `--config <PATH>`: override the config file path
+- `--keystore <PATH>`: override the keystore directory
+- `--json`: print machine-readable JSON
+- `--verbose`: enable verbose CLI logging
+
+The default config currently includes entries for:
+
+- `ethereum`
+- `polygon`
+- `bitcoin`
+- `solana`
+
+## Workspace Layout
+
+The active Cargo workspace currently includes:
+
+- `wallet-cli`: the `wallet` binary and CLI command handlers
+- `tcx-keystore`: encrypted keystore creation, serialization, and unlock flows
+- `tcx-crypto`: shared cryptographic primitives
+- `tcx-primitive`: mnemonic and key primitives used across the workspace
+- `tcx-constants`: chain metadata and derivation helpers
+- `tcx-evm`: EVM address and signing helpers
+- `tcx-bitcoin-bdk`: Bitcoin address/signing helpers
+- `tcx-solana`: Solana address/signing helpers
+- `tcx-ssh`: mnemonic-based SSH key generation
+- legacy chain crates from token-core such as `tcx-atom`, `tcx-eos`, `tcx-ton`, and `tcx-tron`
+
+Some directories remain in the repository but are not active workspace members right now, including `tcx`, `tcx-substrate`, and `tcx-migration`.
+
+For more detail, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+
+## Development
+
+Build the workspace:
+
+```bash
 cargo build
-
-# Build the CLI in release mode
-cargo build --release -p wallet-cli
 ```
 
-### Test
+Build the CLI only:
 
 ```bash
-# Run all tests across the workspace
+cargo build -p wallet-cli
+```
+
+Run the CLI locally:
+
+```bash
+cargo run -p wallet-cli -- --help
+```
+
+Run focused tests that match the currently active CLI work:
+
+```bash
+cargo test -p wallet-cli
+cargo test -p tcx-ssh
+```
+
+Run the full active workspace test suite:
+
+```bash
 cargo test --all
 ```
 
-### Code Quality
+Format the code:
 
 ```bash
-# Check formatting
-cargo fmt --all -- --check
-
-# Run Clippy linter
-cargo clippy --all-targets -- -D warnings
+cargo fmt --all
 ```
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Please read the [**CONTRIBUTING.md**](./CONTRIBUTING.md) guide for details on our code of conduct and the process for submitting pull requests.
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-## 🔐 Security
+## Security
 
-Security is a top priority. Please see the [**SECURITY.md**](./SECURITY.md) file for details on our security policy and how to report vulnerabilities.
+See [SECURITY.md](./SECURITY.md).
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [**LICENSE**](./LICENSE) file for details.
+This project is licensed under the MIT License. See [LICENSE](./LICENSE).
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
-- This project is heavily based on the great work done by the `imToken` team on [token-core-monorepo](https://github.com/consenlabs/token-core-monorepo).
-- The SSH key generation feature is inspired by [mnemossh](https://github.com/abkvme/mnemossh).
+- The project is based on the work of the imToken team in [token-core-monorepo](https://github.com/consenlabs/token-core-monorepo).
+- The SSH key generation flow is inspired by [mnemossh](https://github.com/abkvme/mnemossh).
