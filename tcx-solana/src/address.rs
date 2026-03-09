@@ -1,5 +1,9 @@
 use crate::Result;
 use bs58;
+use std::str::FromStr;
+use tcx_constants::CoinInfo;
+use tcx_keystore::Address;
+use tcx_primitive::TypedPublicKey;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SolanaAddress(pub [u8; 32]);
@@ -28,6 +32,24 @@ impl SolanaAddress {
 
     pub fn to_base58(&self) -> String {
         bs58::encode(&self.0).into_string()
+    }
+}
+
+impl FromStr for SolanaAddress {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Self::from_base58(s)
+    }
+}
+
+impl Address for SolanaAddress {
+    fn from_public_key(public_key: &TypedPublicKey, _coin: &CoinInfo) -> Result<Self> {
+        SolanaAddress::from_ed25519_pubkey(&public_key.to_bytes())
+    }
+
+    fn is_valid(address: &str, _coin: &CoinInfo) -> bool {
+        SolanaAddress::from_str(address).is_ok()
     }
 }
 

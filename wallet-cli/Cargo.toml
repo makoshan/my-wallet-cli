@@ -12,6 +12,7 @@ tcx-keystore      = { path = "../tcx-keystore" }
 tcx-crypto        = { path = "../tcx-crypto" }
 tcx-common        = { path = "../tcx-common" }
 tcx-constants     = { path = "../tcx-constants" }
+tcx-primitive     = { path = "../tcx-primitive" }
 tcx-evm           = { path = "../tcx-evm" }
 tcx-bitcoin-bdk   = { path = "../tcx-bitcoin-bdk" }
 tcx-solana        = { path = "../tcx-solana" }

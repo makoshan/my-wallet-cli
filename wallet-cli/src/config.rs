@@ -54,9 +54,7 @@ impl Config {
         let config_file = if let Some(path) = config_path {
             path.to_path_buf()
         } else {
-            let dir = dirs::home_dir()
-                .unwrap_or_default()
-                .join(".wallet");
+            let dir = dirs::home_dir().unwrap_or_default().join(".wallet");
             fs::create_dir_all(&dir)?;
             dir.join("config.toml")
         };

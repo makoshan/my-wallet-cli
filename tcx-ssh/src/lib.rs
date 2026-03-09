@@ -1,3 +1,4 @@
+pub mod mnemonic;
 pub mod ssh_keys;
 
 use core::result;

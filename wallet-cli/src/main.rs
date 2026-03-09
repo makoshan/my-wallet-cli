@@ -1,30 +1,26 @@
-mod commands;
-mod config;
-mod keystore_manager;
-mod output;
-
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use wallet_cli::{commands, config, keystore_manager};
 
 #[derive(Parser)]
-#[command(name = "wallet")]
-#[command(about = "Multi-chain cryptocurrency wallet CLI", long_about = None)]
-#[command(version)]
+#[clap(name = "wallet")]
+#[clap(about = "Multi-chain cryptocurrency wallet CLI", long_about = None)]
+#[clap(version)]
 struct Cli {
-    #[command(subcommand)]
+    #[clap(subcommand)]
     command: Commands,
 
-    #[arg(global = true, long, help = "Path to config file")]
+    #[clap(global = true, long, help = "Path to config file")]
     config: Option<PathBuf>,
 
-    #[arg(global = true, long, help = "Path to keystore directory")]
+    #[clap(global = true, long, help = "Path to keystore directory")]
     keystore: Option<PathBuf>,
 
-    #[arg(global = true, long, help = "Verbose output")]
+    #[clap(global = true, long, help = "Verbose output")]
     verbose: bool,
 
-    #[arg(global = true, long, help = "JSON output format")]
+    #[clap(global = true, long, help = "JSON output format")]
     json: bool,
 }
 
@@ -32,13 +28,13 @@ struct Cli {
 enum Commands {
     /// Create a new wallet
     Create {
-        #[arg(long, help = "Wallet name")]
+        #[clap(long, help = "Wallet name")]
         name: Option<String>,
 
-        #[arg(long, help = "Wallet password")]
+        #[clap(long, help = "Wallet password")]
         password: Option<String>,
 
-        #[arg(long, help = "Import existing mnemonic")]
+        #[clap(long, help = "Import existing mnemonic")]
         mnemonic: Option<String>,
     },
 
@@ -47,97 +43,100 @@ enum Commands {
 
     /// Show wallet address
     Address {
-        #[arg(long, help = "Wallet name")]
+        #[clap(long, help = "Wallet name")]
         wallet: Option<String>,
 
-        #[arg(long, help = "Chain name (ethereum, bitcoin, solana, etc.)")]
+        #[clap(long, help = "Wallet password")]
+        password: Option<String>,
+
+        #[clap(long, help = "Chain name (ethereum, bitcoin, solana, etc.)")]
         chain: Option<String>,
 
-        #[arg(long, help = "Account index")]
+        #[clap(long, help = "Account index")]
         index: Option<u32>,
     },
 
     /// Query wallet balance
     Balance {
-        #[arg(long, help = "Wallet name")]
+        #[clap(long, help = "Wallet name")]
         wallet: Option<String>,
 
-        #[arg(long, help = "Chain name")]
+        #[clap(long, help = "Chain name")]
         chain: Option<String>,
 
-        #[arg(long, help = "RPC URL")]
+        #[clap(long, help = "RPC URL")]
         rpc: Option<String>,
     },
 
     /// Sign a message
     SignMessage {
-        #[arg(help = "Message to sign")]
+        #[clap(help = "Message to sign")]
         message: String,
 
-        #[arg(long, help = "Wallet name")]
+        #[clap(long, help = "Wallet name")]
         wallet: Option<String>,
 
-        #[arg(long, help = "Chain name")]
+        #[clap(long, help = "Chain name")]
         chain: Option<String>,
 
-        #[arg(long, help = "Account index")]
+        #[clap(long, help = "Account index")]
         index: Option<u32>,
     },
 
     /// Send a transaction
     Send {
-        #[arg(help = "Amount to send")]
+        #[clap(help = "Amount to send")]
         amount: String,
 
-        #[arg(long, help = "Recipient address")]
+        #[clap(long, help = "Recipient address")]
         to: String,
 
-        #[arg(long, help = "Wallet name")]
+        #[clap(long, help = "Wallet name")]
         wallet: Option<String>,
 
-        #[arg(long, help = "Chain name")]
+        #[clap(long, help = "Chain name")]
         chain: Option<String>,
 
-        #[arg(long, help = "Gas price")]
+        #[clap(long, help = "Gas price")]
         gas_price: Option<String>,
 
-        #[arg(long, help = "Gas limit")]
+        #[clap(long, help = "Gas limit")]
         gas_limit: Option<u64>,
     },
 
     /// Export wallet
     Export {
-        #[arg(long, help = "Wallet name")]
+        #[clap(long, help = "Wallet name")]
         wallet: Option<String>,
 
-        #[arg(long, help = "Export format (json, mnemonic)")]
+        #[clap(long, help = "Export format (json, mnemonic)")]
         format: Option<String>,
 
-        #[arg(long, help = "Export password")]
+        #[clap(long, help = "Export password")]
         password: Option<String>,
     },
 
     /// Delete wallet
     Delete {
-        #[arg(long, help = "Wallet name")]
+        #[clap(long, help = "Wallet name")]
         wallet: Option<String>,
 
-        #[arg(long, help = "Skip confirmation")]
+        #[clap(long, help = "Skip confirmation")]
         force: bool,
     },
 
     /// Generate SSH key from mnemonic
     SshKeygen {
-        #[arg(long, help = "Wallet name")]
+        #[clap(long, help = "Wallet name")]
         wallet: Option<String>,
 
-        #[arg(long, help = "Mnemonic phrase")]
+        #[clap(long, help = "Mnemonic phrase")]
         mnemonic: Option<String>,
 
-        #[arg(long, help = "Output path for SSH key")]
+        #[clap(long, help = "Output path for SSH key")]
         output: Option<std::path::PathBuf>,
 
-        #[arg(long, help = "SSH key comment")]
+        #[clap(long, help = "SSH key comment")]
         comment: Option<String>,
     },
 }
@@ -167,46 +166,22 @@ async fn main() -> Result<()> {
             password,
             mnemonic,
         } => {
-            commands::create::handle(
-                &mut keystore_mgr,
-                name,
-                password,
-                mnemonic,
-                cli.json,
-            )
-            .await?;
+            commands::create::handle(&mut keystore_mgr, name, password, mnemonic, cli.json).await?;
         }
         Commands::List => {
             commands::list::handle(&keystore_mgr, cli.json).await?;
         }
         Commands::Address {
             wallet,
+            password,
             chain,
             index,
         } => {
-            commands::address::handle(
-                &keystore_mgr,
-                wallet,
-                chain,
-                index,
-                cli.json,
-            )
-            .await?;
+            commands::address::handle(&keystore_mgr, wallet, password, chain, index, cli.json)
+                .await?;
         }
-        Commands::Balance {
-            wallet,
-            chain,
-            rpc,
-        } => {
-            commands::balance::handle(
-                &keystore_mgr,
-                &config,
-                wallet,
-                chain,
-                rpc,
-                cli.json,
-            )
-            .await?;
+        Commands::Balance { wallet, chain, rpc } => {
+            commands::balance::handle(&keystore_mgr, &config, wallet, chain, rpc, cli.json).await?;
         }
         Commands::SignMessage {
             message,
@@ -214,15 +189,8 @@ async fn main() -> Result<()> {
             chain,
             index,
         } => {
-            commands::sign_message::handle(
-                &keystore_mgr,
-                message,
-                wallet,
-                chain,
-                index,
-                cli.json,
-            )
-            .await?;
+            commands::sign_message::handle(&keystore_mgr, message, wallet, chain, index, cli.json)
+                .await?;
         }
         Commands::Send {
             amount,
@@ -250,14 +218,7 @@ async fn main() -> Result<()> {
             format,
             password,
         } => {
-            commands::export::handle(
-                &keystore_mgr,
-                wallet,
-                format,
-                password,
-                cli.json,
-            )
-            .await?;
+            commands::export::handle(&keystore_mgr, wallet, format, password, cli.json).await?;
         }
         Commands::Delete { wallet, force } => {
             commands::delete::handle(&mut keystore_mgr, wallet, force, cli.json).await?;

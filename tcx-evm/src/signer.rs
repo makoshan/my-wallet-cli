@@ -11,8 +11,8 @@ impl TransactionSigner<EvmTxInput, EvmTxOutput> for Keystore {
         // Build RLP-encoded EIP-1559 transaction hash
         // For simplicity we hash the JSON representation; a production impl
         // would do proper RLP encoding.
-        let tx_json = serde_json::to_string(input)
-            .map_err(|e| anyhow::anyhow!("serialize tx: {}", e))?;
+        let tx_json =
+            serde_json::to_string(input).map_err(|e| anyhow::anyhow!("serialize tx: {}", e))?;
         let hash = Keccak256::digest(tx_json.as_bytes());
 
         let sig = self.secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;

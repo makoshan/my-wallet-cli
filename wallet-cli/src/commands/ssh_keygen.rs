@@ -2,9 +2,9 @@ use crate::keystore_manager::KeystoreManager;
 use crate::output;
 use anyhow::Result;
 use serde_json::json;
-use tcx_ssh::mnemonic::MnemonicHandler;
-use tcx_ssh::ssh_keys::SshKeyGenerator;
 use std::path::PathBuf;
+use tcx_ssh::mnemonic::{MnemonicHandler, MnemonicLength};
+use tcx_ssh::ssh_keys::SshKeypair;
 
 pub async fn handle(
     keystore_mgr: &KeystoreManager,
@@ -14,12 +14,9 @@ pub async fn handle(
     comment: Option<String>,
     json_mode: bool,
 ) -> Result<()> {
-    // 获取或生成助记词
     let mnemonic = if let Some(phrase) = mnemonic_phrase {
-        // 使用提供的助记词
         MnemonicHandler::from_phrase(&phrase)?
     } else {
-        // 从钱包生成助记词（模拟）
         let wallets = keystore_mgr.list_wallets();
         if wallets.is_empty() {
             output::print_error(json_mode, "No wallets found");
@@ -27,20 +24,16 @@ pub async fn handle(
         }
 
         let _wallet_name = wallet.unwrap_or_else(|| wallets[0].name.clone());
-        
-        // 在实际实现中，这里应该从 Keystore 中读取助记词
-        // 现在我们生成一个新的
-        MnemonicHandler::new(tcx_ssh::mnemonic::MnemonicLength::Words24)?
+
+        // The current keystore manager does not expose the stored mnemonic,
+        // so we fall back to a newly generated phrase when one is not provided.
+        MnemonicHandler::new(MnemonicLength::Words24)?
     };
 
-    // 从助记词生成 SSH 密钥
-    let ssh_keygen = SshKeyGenerator::from_mnemonic(
-        &mnemonic,
-        None,
-        comment.as_deref(),
-    )?;
+    let seed = mnemonic.to_seed(None)?;
+    let ssh_keypair = SshKeypair::from_seed_bytes(&seed)?;
+    let comment = comment.unwrap_or_else(|| "wallet-cli".to_string());
 
-    // 确定输出路径
     let key_path = output_path.unwrap_or_else(|| {
         dirs::home_dir()
             .unwrap_or_default()
@@ -48,16 +41,34 @@ pub async fn handle(
             .join("id_ed25519_mnemonic")
     });
 
-    // 保存密钥对
-    let (private_path, public_path) = ssh_keygen.save_to_files(&key_path)?;
+    if let Some(parent) = key_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    std::fs::write(&key_path, ssh_keypair.private_key_openssh(&comment))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&key_path, std::fs::Permissions::from_mode(0o600))?;
+    }
+
+    let public_path = PathBuf::from(format!("{}.pub", key_path.display()));
+    std::fs::write(
+        &public_path,
+        format!("{}\n", ssh_keypair.authorized_keys_line(&comment)),
+    )?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&public_path, std::fs::Permissions::from_mode(0o644))?;
+    }
 
     let result = json!({
         "status": "success",
-        "private_key_path": private_path,
+        "private_key_path": key_path,
         "public_key_path": public_path,
-        "public_key": ssh_keygen.public_key_openssh(),
-        "fingerprint_md5": ssh_keygen.md5_fingerprint(),
-        "fingerprint_sha256": ssh_keygen.sha256_fingerprint(),
+        "public_key": ssh_keypair.authorized_keys_line(&comment),
+        "fingerprint_sha256": ssh_keypair.fingerprint_sha256(),
         "key_type": "ssh-ed25519"
     });
 

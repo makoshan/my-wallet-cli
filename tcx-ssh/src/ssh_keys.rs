@@ -4,11 +4,8 @@
 //! The 32-byte seed slice at that path is used directly as the Ed25519 secret scalar.
 
 use crate::Result;
-use base64::engine::general_purpose::STANDARD as B64;
-use base64::Engine as _;
 use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signer};
 use sha2::{Digest, Sha256};
-use zeroize::Zeroize;
 
 pub const SSH_DERIVATION_PATH: &str = "m/44'/19999'/0'/0'/0'";
 
@@ -51,7 +48,7 @@ impl SshKeypair {
     /// The single line that goes into `~/.ssh/authorized_keys`.
     pub fn authorized_keys_line(&self, comment: &str) -> String {
         let blob = self.public_key_blob();
-        let b64 = B64.encode(&blob);
+        let b64 = base64::encode(&blob);
         if comment.is_empty() {
             format!("ssh-ed25519 {}", b64)
         } else {
@@ -105,7 +102,7 @@ impl SshKeypair {
         write_bytes(&mut body, &pub_blob);
         write_bytes(&mut body, &priv_section);
 
-        let b64 = B64.encode(&body);
+        let b64 = base64::encode(&body);
         // Wrap at 70 chars
         let mut pem = String::from("-----BEGIN OPENSSH PRIVATE KEY-----\n");
         for chunk in b64.as_bytes().chunks(70) {
@@ -120,7 +117,7 @@ impl SshKeypair {
     pub fn fingerprint_sha256(&self) -> String {
         let blob = self.public_key_blob();
         let hash = Sha256::digest(&blob);
-        let b64 = B64.encode(hash);
+        let b64 = base64::encode(hash);
         // Remove trailing '=' padding
         let b64 = b64.trim_end_matches('=');
         format!("SHA256:{}", b64)

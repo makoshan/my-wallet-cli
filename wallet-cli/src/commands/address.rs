@@ -6,6 +6,7 @@ use serde_json::json;
 pub async fn handle(
     keystore_mgr: &KeystoreManager,
     wallet: Option<String>,
+    password: Option<String>,
     chain: Option<String>,
     index: Option<u32>,
     json_mode: bool,
@@ -17,14 +18,16 @@ pub async fn handle(
     }
 
     let wallet_name = wallet.unwrap_or_else(|| wallets[0].name.clone());
+    let password = password.unwrap_or_else(|| {
+        rpassword::prompt_password("Enter wallet password: ").unwrap_or_default()
+    });
     let chain_name = chain.unwrap_or_else(|| "ethereum".to_string());
     let account_index = index.unwrap_or(0);
-
-    // Mock address generation - in real implementation, this would use tcx
-    let mock_address = format!("0x{}{:064x}", account_index, account_index);
+    let address =
+        keystore_mgr.derive_address(&wallet_name, &password, &chain_name, account_index)?;
 
     let result = json!({
-        "address": mock_address,
+        "address": address,
         "chain": chain_name,
         "wallet": wallet_name,
         "index": account_index

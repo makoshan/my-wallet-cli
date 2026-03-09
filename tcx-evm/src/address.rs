@@ -1,6 +1,10 @@
 use crate::Result;
 use hex::FromHex;
 use sha3::{Digest, Keccak256};
+use std::str::FromStr;
+use tcx_constants::CoinInfo;
+use tcx_keystore::Address as KeystoreAddress;
+use tcx_primitive::TypedPublicKey;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EvmAddress([u8; 20]);
@@ -31,8 +35,7 @@ impl EvmAddress {
 
     pub fn from_hex(hex_str: &str) -> Result<Self> {
         let s = hex_str.strip_prefix("0x").unwrap_or(hex_str);
-        let bytes = Vec::from_hex(s)
-            .map_err(|e| anyhow::anyhow!("Invalid hex: {}", e))?;
+        let bytes = Vec::from_hex(s).map_err(|e| anyhow::anyhow!("Invalid hex: {}", e))?;
         if bytes.len() != 20 {
             return Err(anyhow::anyhow!("Invalid EVM address length"));
         }
@@ -67,6 +70,25 @@ impl EvmAddress {
 impl std::fmt::Display for EvmAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_checksum())
+    }
+}
+
+impl KeystoreAddress for EvmAddress {
+    fn from_public_key(public_key: &TypedPublicKey, _coin: &CoinInfo) -> Result<Self> {
+        let secp256k1 = public_key.as_secp256k1()?;
+        EvmAddress::from_public_key(&secp256k1.to_uncompressed())
+    }
+
+    fn is_valid(address: &str, _coin: &CoinInfo) -> bool {
+        EvmAddress::from_hex(address).is_ok()
+    }
+}
+
+impl FromStr for EvmAddress {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        EvmAddress::from_hex(s)
     }
 }
 

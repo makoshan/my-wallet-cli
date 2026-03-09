@@ -17,7 +17,10 @@ pub async fn handle(
     let wallet_name = wallet.unwrap_or_else(|| wallets[0].name.clone());
 
     if !force {
-        println!("Are you sure you want to delete wallet '{}'? (yes/no)", wallet_name);
+        println!(
+            "Are you sure you want to delete wallet '{}'? (yes/no)",
+            wallet_name
+        );
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
         if input.trim() != "yes" {

@@ -14,8 +14,7 @@ impl TransactionSigner<BitcoinTxInput, BitcoinTxOutput> for Keystore {
             .map_err(|e| anyhow::anyhow!("Failed to decode PSBT: {}", e))?;
 
         let hash = sha256d::Hash::hash(&psbt_bytes);
-        let sig = self
-            .secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;
+        let sig = self.secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;
 
         Ok(BitcoinTxOutput {
             signed_psbt: base64::encode(&sig),
@@ -46,8 +45,7 @@ impl MessageSigner<BitcoinMessageInput, BitcoinMessageOutput> for Keystore {
         data.extend_from_slice(msg);
 
         let hash = sha256d::Hash::hash(&data);
-        let sig = self
-            .secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;
+        let sig = self.secp256k1_ecdsa_sign_recoverable(hash.as_ref(), &params.derivation_path)?;
 
         Ok(BitcoinMessageOutput {
             signature: hex::encode(&sig),

@@ -1,6 +1,4 @@
-use crate::transaction::{
-    SolanaMessageInput, SolanaMessageOutput, SolanaTxInput, SolanaTxOutput,
-};
+use crate::transaction::{SolanaMessageInput, SolanaMessageOutput, SolanaTxInput, SolanaTxOutput};
 use sha2::{Digest, Sha256};
 use tcx_keystore::{Keystore, MessageSigner, SignatureParameters, Signer, TransactionSigner};
 

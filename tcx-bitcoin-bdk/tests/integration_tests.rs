@@ -11,7 +11,10 @@ fn test_bitcoin_address_creation() {
 fn test_bitcoin_address_type() {
     let addr_str = "1A1z7agoat2LWQLZLV37ZLX4My6ps6nFX";
     let addr = BitcoinAddress::from_string(addr_str, bitcoin::Network::Bitcoin).unwrap();
-    assert_eq!(addr.address_type(), tcx_bitcoin_bdk::address::AddressType::Legacy);
+    assert_eq!(
+        addr.address_type(),
+        tcx_bitcoin_bdk::address::AddressType::Legacy
+    );
 }
 
 #[test]

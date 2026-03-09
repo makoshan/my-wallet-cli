@@ -29,16 +29,16 @@ members = [
     "tcx-tron",
 
     # Chain implementations (new: EVM / Bitcoin / Solana)
-    # "tcx-evm",  # independent crate (no sp-core dependency)
-    # "tcx-bitcoin-bdk",  # independent crate (no sp-core dependency)
-    # "tcx-solana",  # independent crate (no sp-core dependency)
+    "tcx-evm",
+    "tcx-bitcoin-bdk",
+    "tcx-solana",
 
     # SSH key generation from mnemonic
-    # "tcx-ssh",  # independent crate (no sp-core dependency)
+    "tcx-ssh",
 
     # Main entry point (protobuf API)
     # "tcx",  # temporarily excluded: sp-core serde version conflict
 
     # CLI application
-    # "wallet-cli",  # independent crate (no sp-core dependency)
+    "wallet-cli",
 ]
